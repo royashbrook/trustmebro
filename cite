@@ -15,7 +15,7 @@ set +x 2>/dev/null || true
 unset BASH_XTRACEFD 2>/dev/null || true
 set -uo pipefail
 
-VERSION=3.17.1
+VERSION=3.18.0
 
 die() {
   [ "${CITE_JSON:-0}" = 1 ] && printf '{"error":"%s","ok":false}\n' "$(_jesc "$1")"
@@ -279,6 +279,7 @@ cmd_prove() {
     diff <(printf '%s\n' "$olds") <(printf '%s\n' "$news") >&2
     exit 1
   fi
+  return 0
 }
 
 # lint for the "half-fix": a link whose VISIBLE TEXT is itself a url but differs from the href (href
