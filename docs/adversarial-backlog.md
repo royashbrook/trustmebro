@@ -375,3 +375,16 @@ KNOWN LIMITATIONS (pre-existing , present in perl-final too, NOT port regression
 - node fetch (undici) caps redirects at 20; curl's default is 50. a url needing 21+ hops reads dead in JS
   (pathological; both cap somewhere).
 fresh-eyes pass on the JS source: CLEAN (no global-regex/lastIndex, split-capture, or async-swallow bugs).
+
+## v4.0.3 -> v4.0.4: third JS sweep , 1 gate fail-open + 1 consistency fix (converging)
+
+third sweep: all v4.0.3 fixes confirmed holding, network came back clean. fixed:
+- lint FAIL-OPEN on a markdown half-fix whose link text has LEADING whitespace: `[ https://shown](https://real)`
+  renders trimmed, so the reader sees a url-as-text half-fix, but the `^https?:` test saw the leading space
+  and missed it (trailing space was caught , the asymmetry proved the bug). lintScan now trims the text. (real)
+- isFlagged: strip trailing punctuation from the QUERY url too (not just the flag-file urls), so a flagged
+  bare url matches a dead inline-link href ending in punctuation. closes the documented _flagged-punct caveat.
+KEPT as correct (not a bug): a half-fix link's DISPLAY-TEXT url is no longer extracted by `links`/`check`
+(side effect of the v4.0.3 paren-phantom mask). the display text isn't a clickable target, and `lint` flags
+the half-fix anyway, so the check verdict agrees , JS is more correct than perl here.
++1 test (lint leading-ws). 85 tests green.

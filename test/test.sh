@@ -327,6 +327,12 @@ plout="$("$CITE" links "$pp")"
 { printf '%s\n' "$plout" | grep -qxF 'https://en.wikipedia.org/wiki/Paxos_(computer_science)' && ! printf '%s\n' "$plout" | grep -qxF 'https://en.wikipedia.org/wiki/Paxos_'; } && ok "no phantom truncated dup of a paren-url" || bad "paren-url phantom: $plout"
 rm -f "$pp"
 
+# lint must catch a url-as-text half-fix even when the link text has LEADING whitespace (markdown renders
+# link text trimmed, so " https://x" is the same visible-url half-fix as "https://x").
+lw="$fix/leadws.md"; printf 'see [ https://shown.example](https://real.example) ok.\n' > "$lw"
+"$CITE" lint "$lw" >/dev/null 2>&1 && bad "lint missed a leading-whitespace half-fix (fail-open)" || ok "lint catches a leading-whitespace url-as-text half-fix"
+rm -f "$lw"
+
 # a directory path gives a clean 'no file' error, not a raw node EISDIR leak (the lost [ -f ] check)
 out="$("$CITE" links "$fix" 2>&1)"; rc=$?
 { [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q 'no file' && ! printf '%s' "$out" | grep -qi 'EISDIR'; } && ok "directory path -> clean 'no file' error" || bad "directory should give clean error (got: $out)"

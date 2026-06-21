@@ -14,7 +14,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
-const VERSION = '4.0.3';
+const VERSION = '4.0.4';
 
 // ---- global flags (set by the arg parser below) ----
 let JSON_OUT = process.env.CITE_JSON === '1';
@@ -274,9 +274,9 @@ function lintScan(f) {
   const out = [];
   let m;
   const reMd = /(?<!\!)\[([^\]]*)\]\(((?:[^()\s]|\([^()\s]*\))+)\)/g;
-  while ((m = reMd.exec(masked))) { const t = m[1], h = m[2]; if (/^https?:\/\//.test(t) && t !== h) out.push({ text: t, href: h }); }
+  while ((m = reMd.exec(masked))) { const t = m[1].trim(), h = m[2]; if (/^https?:\/\//.test(t) && t !== h) out.push({ text: t, href: h }); }   // trim: md renders link text trimmed, so " https://x" IS a url-as-text half-fix
   const reHtml = /<a\b[^>]*?href\s*=\s*(["']?)([^"'\s>]+)\1[^>]*>(.*?)<\/a>/gis;
-  while ((m = reHtml.exec(masked))) { const h = m[2]; const t = m[3].replace(/<[^>]*>/gs, ''); if (/^https?:\/\//.test(t) && t !== h) out.push({ text: t, href: h }); }
+  while ((m = reHtml.exec(masked))) { const h = m[2]; const t = m[3].replace(/<[^>]*>/gs, '').trim(); if (/^https?:\/\//.test(t) && t !== h) out.push({ text: t, href: h }); }
   return out;
 }
 
@@ -329,7 +329,7 @@ function isFlagged(flagsFile, url) {
   let txt;
   try { txt = fs.readFileSync(flagsFile, 'utf8'); } catch { return false; }
   const urls = (txt.match(/https?:\/\/[^\s]+/g) || []).map(u => u.replace(/[.,;:!?]*$/, ''));
-  return urls.includes(url);
+  return urls.includes(url.replace(/[.,;:!?]*$/, ''));   // strip the query url too, so an inline href ending in punctuation matches a flagged bare url consistently
 }
 
 // ---- insert ----
