@@ -1,6 +1,6 @@
 ---
 name: cite
-version: 3.16.0
+version: 3.17.0
 description: Insert verified links into a markdown post to make it easier to READ and TRUST, for the reader, not as proof. Three kinds: EXPLAIN a term a non-specialist would not know, SUBSTANTIATE a claim about an external thing, or (rarely) SHOW code via a sha-pinned permalink. Every link must resolve AND actually mean the thing in context (a live-but-wrong link is the worst output). NOT a fact-check of the document. Triggers: "cite this post", "add citations", "explain the jargon", "back up the claims", "make this post easier to follow". Auto-inserts; review the diff.
 ---
 
@@ -12,10 +12,10 @@ The agent makes every judgment call; a small helper (`cite`) does the mechanics.
 
 ## Quickstart
 
-1. **Read** the post. Find what a *technical generalist* (literate, not a specialist in this domain) would not know: jargon to EXPLAIN, external claims to SUBSTANTIATE. Under-link, zero is a fine outcome, never manufacture links. But do not leave the post's *central* term unlinked while citing a secondary one.
+1. **Read** the post. Find what a *technical generalist* (literate, not a specialist in this domain) would not know: jargon to EXPLAIN, external claims to SUBSTANTIATE. Under-link, zero is a fine outcome, never manufacture links. Don't leave the post's *central* term unlinked while citing a secondary one , unless it has no honest target, then flag it (under-linking the center beats laundering it).
 2. **Resolve** each: web-search the source, **open it**, confirm it means the term / backs the claim *in this post's sense*. A live-but-wrong link is the worst output.
 3. **Flag, don't fabricate.** Can't back a claim, or it looks false? Don't invent a link: `cite flag <post> <reason>` (put the dead url IN the reason).
-4. **Insert** by wrapping the tightest existing phrase, in the doc's own syntax (markdown `[phrase](url)`; HTML `<a href>`; etc., tell the user if you adapt). Verify each link you add: `cite verify <url>`. Never rewrite prose.
+4. **Insert** each with `cite insert <post> <phrase> <url>` , it verifies the url, requires the phrase to occur **exactly once** (a missed or ambiguous add errors instead of silently passing), and wraps it in the doc's format (markdown, or HTML `<a href>`; tell the user if you adapt). Never rewrite prose.
 5. **Gate:** `cite prove <post> <base>` (only link markup changed) and `cite lint <post>` (no url-as-text half-fix). Both must pass. Pass the base ref, since a bare prove after committing self-passes.
 6. **Offer, don't audit.** Your adds are verified. For the author's pre-existing links you did not touch, just count them (`cite links`) and offer: *"added 3 cites; 12 existing links i didn't touch, check those for rot?"* Run the full audit only on a yes.
 
@@ -57,13 +57,14 @@ Know or infer the repo, read a `.cite` map if present (`name = owner/repo`), or 
 
 ## Setup
 
-The `cite` script is next to this file. Put it on PATH (`ln -s "$PWD/cite" ~/.local/bin/cite`) or call it by path. Needs `bash`, `git`, `curl`, `perl` (`gh` optional). Two roots: cite operates on **the post's** git repo (where prove / flag / check work), separate from where you cloned the helper.
+The `cite` script is next to this file. Put it on PATH (`ln -s "$PWD/cite" ~/.local/bin/cite`) or call it by path. Needs `bash`, `git`, `curl`, `perl` (`gh` optional). Two roots: cite operates on **the post's** git repo (where prove / flag / check work). Clone the helper **outside** that repo (or gitignore it), so it does not get committed into the post's tree.
 
 ## Helper reference
 
 ```
 cite verify <url> | cite verify -   resolves? HTTP code + dead-vs-gated hint + redirect landing (batch: parallel, JSONL). --crosscheck probes the host root.
 cite links <file>                   every link url (md + html href + ref-defs + autolinks + bare), images excluded. --relative also lists relative targets.
+cite insert <file> <phrase> <url>   safe add: verify url + require an exactly-one literal match + wrap (md or html). errors on 0/>1.
 cite prove <file> [ref]             assert ONLY link markup changed vs ref (default HEAD); fails on any prose/text/whitespace edit.
 cite lint <file>                    catch the half-fix (visible text is a url that differs from its href). --fix syncs it.
 cite flag <post> <reason>           record a dead link / dubious claim (WITH its url) to .cite-flags.md.

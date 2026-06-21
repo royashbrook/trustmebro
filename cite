@@ -14,7 +14,7 @@ set +x 2>/dev/null || true
 unset BASH_XTRACEFD 2>/dev/null || true
 set -uo pipefail
 
-VERSION=3.16.0
+VERSION=3.17.0
 
 die() {
   [ "${CITE_JSON:-0}" = 1 ] && printf '{"error":"%s","ok":false}\n' "$(_jesc "$1")"
@@ -36,6 +36,9 @@ cite , verified citation links for an agent.
   cite links <file>
         print every markdown-link url in <file>, one per line (paren-safe). pipe to verify:
         cite links post.md | cite verify -
+  cite insert <file> <phrase> <url>
+        safely add one citation: verify <url>, require <phrase> to occur EXACTLY ONCE, wrap it in the
+        doc's format (md or html). errors on 0 or >1 matches so a missed/ambiguous add can't pass silently.
   cite prove <file> [ref]
         prove cite only touched LINK MARKUP: strip links to visible text in <file> and in <ref>
         (default HEAD) and assert they match. nonzero + a diff if any prose/text/whitespace changed.
@@ -149,7 +152,7 @@ _verify_emit() {
     if [ "${CITE_JSON:-0}" = 1 ]; then
       if [ -n "$redir" ]; then printf '{"url":"%s","ok":true,"code":"200","final":"%s"}\n' "$(_jesc "$url")" "$(_jesc "$redir")"
       else printf '{"url":"%s","ok":true,"code":"200"}\n' "$(_jesc "$url")"; fi
-    elif [ -n "$redir" ]; then printf 'ok    %s  -> %s  (redirected; link the final canonical url)\n' "$url" "$redir"
+    elif [ -n "$redir" ]; then printf 'ok    %s  -> %s  (redirected , open the final page and confirm it still means the term before linking it)\n' "$url" "$redir"
     else printf 'ok    %s\n' "$url"; fi
     return 0
   fi
@@ -289,8 +292,8 @@ cmd_lint() {
   if [ "${CITE_FIX:-0}" = 1 ]; then
     local before; before="$(_lint_scan "$f")"
     # the leading code-span alternative is kept verbatim ($c), so links inside ``` / `code` are never rewritten.
-    perl -0777 -i -pe 's{(<!--.*?-->|`{3,}[^\n]*\n.*?\n[ \t]*`{3,}[^\n]*|``.*?``|`[^`\n]+`)|(?<!\!)\[([^\]]*)\]\(((?:[^()\s]|\([^()\s]*\))+)\)}{ my($c,$t,$h)=($1,$2,$3); defined($c)?$c:(($t=~m{^https?://}&&$t ne $h)?"[$h]($h)":"[$t]($h)") }ges' "$f" 2>/dev/null
-    perl -0777 -i -pe 's{(<!--.*?-->|`{3,}[^\n]*\n.*?\n[ \t]*`{3,}[^\n]*|``.*?``|`[^`\n]+`)|(<a\b[^>]*?href\s*=\s*["\x27]?)([^"\x27\s>]+)(["\x27]?[^>]*>)(.*?)(</a>)}{ my($c,$p,$h,$m,$t,$q)=($1,$2,$3,$4,$5,$6); if(defined($c)){$c}else{ my $tt=$t; $tt=~s/<[^>]*>//gs; ($tt=~m{^https?://}&&$tt ne $h)?"$p$h$m$h$q":"$p$h$m$t$q" } }gise' "$f" 2>/dev/null
+    perl -0777 -i -pe 's{(<!--.*?-->|[ \t]*(?:`{3,}|~{3,})[^\n]*\n.*?\n[ \t]*(?:`{3,}|~{3,})[^\n]*|``.*?``|`[^`\n]+`)|(?<!\!)\[([^\]]*)\]\(((?:[^()\s]|\([^()\s]*\))+)\)}{ my($c,$t,$h)=($1,$2,$3); defined($c)?$c:(($t=~m{^https?://}&&$t ne $h)?"[$h]($h)":"[$t]($h)") }ges' "$f" 2>/dev/null
+    perl -0777 -i -pe 's{(<!--.*?-->|[ \t]*(?:`{3,}|~{3,})[^\n]*\n.*?\n[ \t]*(?:`{3,}|~{3,})[^\n]*|``.*?``|`[^`\n]+`)|(<a\b[^>]*?href\s*=\s*["\x27]?)([^"\x27\s>]+)(["\x27]?[^>]*>)(.*?)(</a>)}{ my($c,$p,$h,$m,$t,$q)=($1,$2,$3,$4,$5,$6); if(defined($c)){$c}else{ my $tt=$t; $tt=~s/<[^>]*>//gs; ($tt=~m{^https?://}&&$tt ne $h)?"$p$h$m$h$q":"$p$h$m$t$q" } }gise' "$f" 2>/dev/null
     local b a; b="$(printf '%s' "$before" | grep -c .)"; a="$(_lint_scan "$f" | grep -c .)"
     fixed=$(( b - a ))
   fi
@@ -311,6 +314,25 @@ cmd_lint() {
 # record a durable flag (dead pre-existing link, dubious/unsourced claim, misattribution) to
 # .cite-flags.md at the repo root, so 'flag, don't fabricate' findings survive as an inventory instead
 # of evaporating into a chat reply.
+# safely ADD one citation: verify the url, require the phrase to occur EXACTLY ONCE (literal match), then
+# wrap that one occurrence in the doc's format. a missed add (0 matches) or an ambiguous one (>1) ERRORS
+# instead of silently riding through the gates , the one safety net the add half otherwise lacked.
+cmd_insert() {
+  local f="${1:-}" phrase="${2:-}" url="${3:-}"
+  { [ -n "$f" ] && [ -n "$phrase" ] && [ -n "$url" ]; } || die "insert: usage , cite insert <file> <phrase> <url>"
+  [ -f "$f" ] || die "insert: no file '$f'"
+  local n; n="$(CITE_PHRASE="$phrase" perl -0777 -ne 'my $p=quotemeta($ENV{CITE_PHRASE}); my $c=()=/$p/g; print $c+0' "$f" 2>/dev/null)"
+  [ "${n:-0}" -ge 1 ] 2>/dev/null || die "insert: phrase not found in $f , nothing inserted (check the exact text / spacing)"
+  [ "$n" -eq 1 ] 2>/dev/null || die "insert: phrase appears $n times in $f , use a longer unique phrase"
+  local code; code="$(_probe "$url")"; code="${code%%|*}"
+  [ "$code" = "200" ] || die "insert: $url -> HTTP ${code:-000} ($(_codehint "${code:-000}")) , not inserting an unverified link"
+  case "$f" in
+    *.html|*.htm) CITE_PHRASE="$phrase" CITE_URL="$url" perl -0777 -i -pe 's/\Q$ENV{CITE_PHRASE}\E/"<a href=\"".$ENV{CITE_URL}."\">".$ENV{CITE_PHRASE}."<\/a>"/e' "$f" ;;
+    *)            CITE_PHRASE="$phrase" CITE_URL="$url" perl -0777 -i -pe 's/\Q$ENV{CITE_PHRASE}\E/"[".$ENV{CITE_PHRASE}."](".$ENV{CITE_URL}.")"/e' "$f" ;;
+  esac
+  printf 'insert: wrapped "%s" -> %s in %s\n' "$phrase" "$url" "$f"
+}
+
 cmd_flag() {
   local f="${1:-}"; shift 2>/dev/null || true; local reason="$*"
   { [ -n "$f" ] && [ -n "$reason" ]; } || die "flag: usage , cite flag <post> <reason...>"
@@ -322,9 +344,6 @@ cmd_flag() {
   ts="$(date +%Y-%m-%d 2>/dev/null)"
   printf -- '- [%s] %s , %s\n' "$ts" "$rel" "$reason" >> "$root/.cite-flags.md"
   printf 'flag: recorded to %s/.cite-flags.md\n' "$root"
-  case "$reason" in *http://*|*https://*) : ;;
-    *) printf 'flag: note , no url in the reason; cite check can only downgrade a dead link to "flagged, known" if its url is in the reason.\n' >&2 ;;
-  esac
 }
 
 # is <url> recorded in <flags-file>? matches the url as a WHOLE token (extract urls + exact-compare),
@@ -391,20 +410,28 @@ EOF
     elif ( cmd_prove "$f" "$base" ) >/dev/null 2>&1; then pstatus="prose intact"
     else pstatus="PROSE CHANGED vs $base"; pfail=1; fi
   fi
-  local nlint; nlint="$(_lint_scan "$f" | grep -c .)"
+  local nlint flagrec=0; nlint="$(_lint_scan "$f" | grep -c .)"
+  { [ -n "$root" ] && [ -f "$root/.cite-flags.md" ]; } && flagrec="$(grep -c '^- ' "$root/.cite-flags.md" 2>/dev/null || echo 0)"
   local ok=1; { [ "$nfail" -eq 0 ] && [ "$pfail" -eq 0 ] && [ "${nlint:-0}" -eq 0 ]; } || ok=0
   if [ "${CITE_JSON:-0}" = 1 ]; then
     local off; off="$(_lint_scan "$f" | while IFS="	" read -r t h; do [ -n "$t" ] && printf '{"text":"%s","href":"%s"},' "$(_jesc "$t")" "$(_jesc "$h")"; done)"; off="${off%,}"
-    printf '{"file":"%s","links":%s,"link_failures":%s,"flagged_known":%s,"failed_urls":[%s],"prove":"%s","half_fixes":%s,"offenders":[%s],"ok":%s}\n' \
-      "$(_jesc "$f")" "${nlink:-0}" "$nfail" "$flagged" "$fu" "$(_jesc "$pstatus")" "${nlint:-0}" "$off" "$([ "$ok" -eq 1 ] && echo true || echo false)"
+    printf '{"file":"%s","links":%s,"link_failures":%s,"flagged_known":%s,"failed_urls":[%s],"prove":"%s","half_fixes":%s,"offenders":[%s],"flags_recorded":%s,"ok":%s}\n' \
+      "$(_jesc "$f")" "${nlink:-0}" "$nfail" "$flagged" "$fu" "$(_jesc "$pstatus")" "${nlint:-0}" "$off" "${flagrec:-0}" "$([ "$ok" -eq 1 ] && echo true || echo false)"
     [ "$ok" -eq 1 ]; return
   fi
   printf 'check %s (vs %s):\n' "$f" "$base"
   if [ "$flagged" -gt 0 ]; then printf '  links: %s checked, %s failed (%s flagged, known)\n' "${nlink:-0}" "$nfail" "$flagged"
   else printf '  links: %s checked, %s failed\n' "${nlink:-0}" "$nfail"; fi
+  if [ "$nfail" -gt 0 ]; then
+    printf '%s\n' "${vout:-}" | awk '/^FAIL/{print $2}' | while IFS= read -r u; do
+      [ -n "$u" ] || continue
+      { [ -n "$root" ] && [ -f "$root/.cite-flags.md" ] && _flagged "$root/.cite-flags.md" "$u"; } || printf '         dead: %s\n' "$u"
+    done
+  fi
   printf '  prove: %s\n' "$pstatus"
   printf '  lint:  %s\n' "$([ "${nlint:-0}" -eq 0 ] && echo 'clean' || echo "${nlint} half-fix(es) , run cite lint --fix")"
-  [ "$ok" -eq 1 ] && printf '  => PASS\n' || printf '  => ISSUES (re-run the failing gate for detail)\n'
+  [ "${flagrec:-0}" -gt 0 ] 2>/dev/null && printf '  flags: %s recorded in .cite-flags.md (read it , url-less claim flags do not show above)\n' "$flagrec"
+  [ "$ok" -eq 1 ] && printf '  => PASS\n' || printf '  => ISSUES\n'
   [ "$ok" -eq 1 ]
 }
 
@@ -451,6 +478,7 @@ case "$cmd" in
   prove)     cmd_prove "$@" ;;
   lint)      cmd_lint "$@" ;;
   flag)      cmd_flag "$@" ;;
+  insert)    cmd_insert "$@" ;;
   sweep)     cmd_sweep "$@" ;;
   check)     cmd_check "$@" ;;
   __vone)    _verify_emit "${1:-}" ;;

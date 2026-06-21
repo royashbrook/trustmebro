@@ -27,6 +27,7 @@ error-prone mechanics:
 ```sh
 cite links <file>                         # every link url (markdown + html href), paren-safe, deduped, images excluded
 cite verify <url> | cite verify -         # resolves? prints HTTP code + dead-vs-gated hint + redirect landing
+cite insert <file> <phrase> <url>          # safe add: verify url + exactly-one literal match + wrap (md/html); errors on 0 or >1
 cite prove <file> [ref]                   # assert ONLY link markup changed vs ref; fails on any prose edit
 cite lint <file>                          # catch the half-fix: visible text is a url differing from its href
 cite flag <post> <reason...>              # append a durable flag to .cite-flags.md at the repo root

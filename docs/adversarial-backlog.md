@@ -227,3 +227,23 @@ feature-complete for its scope, but one real bug + heavy redundancy:
 noted, not built (in-scope future): a diff-aware "verify only the links I ADDED" mode (so the mandatory
 gate matches the agent's responsibility without fusing the optional audit); `cite flag --url` as a
 first-class arg; relative-link absolutize using the known slug. all natural in-mission extensions.
+
+## varied-content pass (v3.16 -> v3.17): a blocking bug, a missing feature, a friction cluster
+
+5 cold agents each wrote + cited a DIFFERENT realistic doc (tutorial / opinion essay / badge-heavy README /
+HTML article / breaker). all confirmed cite handles real varied content well and stays out of fact-checking.
+findings, all addressed:
+
+- BLOCKING: `cite lint --fix` silently corrupted code inside `~~~` (tilde) fences , `_mask_code` protected
+  both fence styles but the two --fix regexes protected backtick-only, reopening the v3.11 "dangerous
+  inverse" for tildes. FIX: both --fix regexes now protect `(?:`|~){3,}` fences (+ indented).
+- MISSING FEATURE (3 agents): the ADD half had no safety net , a silently-missed insertion passed every
+  gate. FIX: `cite insert <file> <phrase> <url>` , verifies the url, requires an EXACTLY-ONE literal match
+  (0 or >1 errors), wraps in the doc's format. the add now has the same mechanical floor the hygiene half had.
+- friction cluster: removed the flag url-warn (misfired on legit url-less CLAIM flags , 3 agents);
+  `cite check` text output now LISTS the failing urls (was: "re-run for detail") and surfaces a
+  "flags recorded" count (observability for url-less claim flags, which no gate can confirm); softened the
+  verify redirect note to "open the final page and confirm it still means the term" (an AWS-docs redirect to
+  a stripped index was steering toward a live-but-wrong link); SKILL Setup now says clone the helper OUTSIDE
+  the post repo (cloning inside committed it as a gitlink); added the central-term-vs-launder caveat to step 1.
+70 tests green.

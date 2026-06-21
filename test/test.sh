@@ -247,10 +247,27 @@ git -C "$fix" add pre.md; git -C "$fix" commit -qm pre
 "$CITE" flag "$fix/pre.md" "known dead: https://dead-zzz.invalid/page-two" >/dev/null 2>&1
 pout="$("$CITE" check "$fix/pre.md" HEAD 2>/dev/null)"
 { printf '%s' "$pout" | grep -q '1 flagged' && printf '%s' "$pout" | grep -q 'ISSUES'; } && ok "flag-downgrade is exact-url (prefix not vouched)" || bad "flag substring false-PASS (got: $pout)"
-# flag with no url in the reason warns
-fwarn="$("$CITE" flag "$fix/pre.md" "this one is dead, trust me" 2>&1)"
-printf '%s' "$fwarn" | grep -q 'no url in the reason' && ok "flag warns when reason has no url" || bad "flag should warn on a url-less reason"
 rm -f "$fix/pre.md" "$fix/.cite-flags.md"
+
+# 22. tilde-fence --fix protection (the blocking corruption the varied pass found)
+tf="$fix/tf.md"
+printf 'fix it:\n\n~~~markdown\n[http://old.example/x](https://new.example/y)\n~~~\n' > "$tf"; cp "$tf" "$tf.bak"
+"$CITE" lint "$tf" --fix >/dev/null 2>&1
+diff -q "$tf" "$tf.bak" >/dev/null 2>&1 && ok "lint --fix protects ~~~ tilde fences" || bad "lint --fix corrupted a tilde-fenced code example"
+rm -f "$tf" "$tf.bak"
+
+# 23. cite insert: exactly-one literal match (errors on 0 or >1) , the add safety net
+ins="$fix/ins.md"
+printf 'a unique raft phrase and a token bucket and another token bucket.\n' > "$ins"
+out="$("$CITE" insert "$ins" "no such phrase" https://example.com 2>&1)"; rc=$?
+{ [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q 'not found'; } && ok "insert errors on 0 matches (missed add)" || bad "insert should error on a missing phrase"
+out="$("$CITE" insert "$ins" "token bucket" https://example.com 2>&1)"; rc=$?
+{ [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q 'appears 2 times'; } && ok "insert errors on >1 matches (ambiguous)" || bad "insert should error on an ambiguous phrase"
+if curl -fsS -o /dev/null --max-time 8 https://example.com 2>/dev/null; then
+  "$CITE" insert "$ins" "raft phrase" https://example.com >/dev/null 2>&1
+  grep -qF '[raft phrase](https://example.com)' "$ins" && ok "insert wraps an exactly-one match" || bad "insert should wrap a unique phrase"
+else ok "insert wrap (skipped, offline)"; fi
+rm -f "$ins"
 
 echo "# done. failures: $fails"
 [ "$fails" -eq 0 ]
