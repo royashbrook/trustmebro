@@ -1,0 +1,451 @@
+#!/usr/bin/env bash
+# cite , find the source behind a post's claims and emit VERIFIED citation links.
+#
+# the agent does the judgment (which claims warrant a cite, which source backs each, which lines);
+# this script does the error-prone mechanics:
+#   - build a SHA-pinned github permalink, VALIDATED against the local repo at that sha, and refusing
+#     to pin to an UNPUSHED sha (which would 404). a wrong/dead code cite can't reach the diff.
+#   - verify a url resolves (HTTP 200).
+#   - preflight a repo (slug, HEAD, pushed?, dirty?) so the agent knows the state before it cites.
+# there is no "insert" or "find" here on purpose , that's the agent's job, guided by SKILL.md.
+# mirrors hush's shape: a contract + one focused script.
+
+set +x 2>/dev/null || true
+unset BASH_XTRACEFD 2>/dev/null || true
+set -uo pipefail
+
+VERSION=3.15.0
+
+die() {
+  [ "${CITE_JSON:-0}" = 1 ] && printf '{"error":"%s","ok":false}\n' "$(_jesc "$1")"
+  printf 'cite: %s\n' "$1" >&2; exit 1
+}
+
+usage() {
+  cat >&2 <<'EOF'
+cite , verified citation links for an agent.
+
+  cite permalink <repo-dir> <path> <start> [end] [--ref <ref>]
+        build a SHA-pinned github blob permalink for path#Lstart-Lend. by default pins to the repo's
+        HEAD sha, but REFUSES if HEAD isn't pushed to a remote (the link would 404) , pass
+        --ref origin/<branch> (or any pushed ref/sha) to pin to a public commit. validates the file +
+        line range EXIST at the chosen sha; errors (emits nothing) if not.
+  cite verify <url>
+        exit 0 if <url> resolves (HTTP 200), nonzero otherwise. for external cites + a final check
+        that a code permalink's sha is actually public.
+  cite links <file>
+        print every markdown-link url in <file>, one per line (paren-safe). pipe to verify:
+        cite links post.md | cite verify -
+  cite prove <file> [ref]
+        prove cite only touched LINK MARKUP: strip links to visible text in <file> and in <ref>
+        (default HEAD) and assert they match. nonzero + a diff if any prose/text/whitespace changed.
+        run after editing; it's the mechanical version of the don't-rewrite-prose contract.
+  cite lint <file>
+        catch the "half-fix": a link whose visible text is a url that differs from its href (href
+        repointed, stale url left as displayed text). nonzero + the offenders if any. prove can't see
+        these (url->url text is a no-op to it), so run lint too.
+  cite flag <post> <reason...>
+        append a durable flag (dead pre-existing link, dubious claim, misattribution) to .cite-flags.md
+        at the repo root, so 'flag, don't fabricate' findings persist as an inventory.
+  cite sweep <repo-dir> <base-ref>
+        run prove + lint over every .md changed vs <base-ref> and report offenders. the harness backstop
+        for a batch/corpus run, where per-post agent diligence is uneven , don't trust self-reports.
+  cite check <post> [base-ref]
+        one-shot: verify every link + prove (vs base, default HEAD) + lint, and report PASS/ISSUES.
+        the per-post happy path , four gates in one command.
+  cite preflight <repo-dir>
+        print the repo's citing state: github slug, HEAD sha, whether HEAD is pushed, dirty/clean.
+        run this BEFORE citing so you pin to a public sha from the start.
+
+  cite version
+        print the helper version (add --json for {"version":...}).
+
+Global flags: --json (structured output on links/verify/lint/check; batch verify emits JSONL, one
+object per line; errors emit {"error":...,"ok":false}), --crosscheck (verify: probe the host root to
+call dead-vs-gated), --relative (links: also list relative targets), --fix (lint: sync url-as-text to
+the href). NOTE: prove/flag/check/sweep need the post to live in a git repo; links/verify/lint do not.
+The agent decides WHAT to cite + finds the source; this builds + checks. See SKILL.md.
+EOF
+  exit "${1:-2}"
+}
+
+# parse owner/repo from a github remote url (git@github.com:o/r.git or https://github.com/o/r(.git))
+gh_slug() {
+  local url="$1"; url="${url%.git}"
+  case "$url" in
+    git@github.com:*)     printf '%s' "${url#git@github.com:}" ;;
+    https://github.com/*) printf '%s' "${url#https://github.com/}" ;;
+    *) return 1 ;;
+  esac
+}
+
+# is <sha> reachable from any remote-tracking branch (i.e. pushed)?
+sha_is_pushed() { [ -n "$(git -C "$1" branch -r --contains "$2" 2>/dev/null)" ]; }
+
+cmd_permalink() {
+  local ref="" dir="" path="" start="" end="" pos=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --ref)   ref="${2:-}"; [ -n "$ref" ] || die "permalink: --ref needs a value"; shift 2 ;;
+      --ref=*) ref="${1#--ref=}"; shift ;;
+      *) case "$pos" in
+           0) dir="$1" ;; 1) path="$1" ;; 2) start="$1" ;; 3) end="$1" ;;
+           *) die "permalink: too many arguments" ;;
+         esac; pos=$((pos + 1)); shift ;;
+    esac
+  done
+  { [ -n "$dir" ] && [ -n "$path" ] && [ -n "$start" ]; } || usage
+  case "$start" in ''|*[!0-9]*) die "permalink: start line must be a number";; esac
+  [ -n "$end" ] && case "$end" in ''|*[!0-9]*) die "permalink: end line must be a number";; esac
+  [ "$start" -ge 1 ] 2>/dev/null || die "permalink: start line must be >= 1 (got $start)"
+  [ -n "$end" ] && { [ "$end" -ge "$start" ] 2>/dev/null || die "permalink: end ($end) is before start ($start)"; }
+  git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "not a git repo: $dir"
+  local remote slug sha
+  remote="$(git -C "$dir" remote get-url origin 2>/dev/null)" || die "no 'origin' remote in $dir"
+  slug="$(gh_slug "$remote")" || die "origin is not a github remote: $remote"
+  if [ -n "$ref" ]; then
+    sha="$(git -C "$dir" rev-parse --verify "$ref^{commit}" 2>/dev/null)" || die "cannot resolve ref '$ref' in $dir"
+  else
+    sha="$(git -C "$dir" rev-parse HEAD 2>/dev/null)" || die "cannot resolve HEAD in $dir"
+    sha_is_pushed "$dir" "$sha" || die "HEAD ($sha) isn't pushed to any remote , the permalink would 404. push it, or pass --ref origin/<branch> to pin to a public commit."
+  fi
+  git -C "$dir" cat-file -e "$sha:$path" 2>/dev/null || die "no '$path' at $sha"
+  local n last; n="$(git -C "$dir" show "$sha:$path" | awk 'END{print NR}')"; last="${end:-$start}"
+  [ "$last" -le "$n" ] 2>/dev/null || die "line $last out of range ($path has $n lines at $sha)"
+  if [ -n "$end" ] && [ "$end" != "$start" ]; then
+    printf 'https://github.com/%s/blob/%s/%s#L%s-L%s\n' "$slug" "$sha" "$path" "$start" "$end"
+  else
+    printf 'https://github.com/%s/blob/%s/%s#L%s\n' "$slug" "$sha" "$path" "$start"
+  fi
+}
+
+_probe() { curl -s -o /dev/null -w '%{http_code}|%{url_effective}' -L --max-time 20 "$1" 2>/dev/null; }
+# compare urls ignoring only scheme + trailing slash, so http->https / trailing-slash redirects are
+# not flagged but a real path/host move (the macvlan docs.docker.com/network->engine case) is.
+_norm() { printf '%s' "$1" | sed -e 's#^https\{0,1\}://##' -e 's#/$##'; }
+# scheme://host/ of a url , for the --crosscheck root probe.
+_host_root() { printf '%s' "$1" | sed -E 's#^(https?://[^/]+).*#\1/#'; }
+# escape a string for embedding in a JSON double-quoted value.
+_jesc() { printf '%s' "${1:-}" | perl -pe 's/([\\"])/\\$1/g; s/\n/\\n/g; s/\r/\\r/g; s/\t/\\t/g; s/([\x00-\x1f])/sprintf("\\u%04x",ord($1))/ge' 2>/dev/null; }
+# turn a non-200 code into a dead-vs-gated hint, so the agent doesn't have to hand-roll the diagnosis.
+_codehint() {
+  case "$1" in
+    403|429|503) printf 'often bot/JS-gated , cross-check a non-gated source (registry index/api) before calling it dead' ;;
+    404|410)     printf 'likely dead' ;;
+    000)         printf 'no response / timeout' ;;
+    3*)          printf 'redirect , prefer the final url' ;;
+    *)           printf 'not 200' ;;
+  esac
+}
+
+# emit one verify result for <url> (text or JSON per CITE_JSON), optionally crosschecking dead-vs-gated
+# via a host-root probe (CITE_XCHECK). returns 0 iff the url resolves (HTTP 200).
+_verify_emit() {
+  local url="${1:-}" res code final redir hint root rcode
+  [ -n "$url" ] || return 0
+  res="$(_probe "$url")"; code="${res%%|*}"; final="${res#*|}"
+  if [ "$code" = "200" ]; then
+    redir=""; { [ -n "$final" ] && [ "$(_norm "$final")" != "$(_norm "$url")" ]; } && redir="$final"
+    if [ "${CITE_JSON:-0}" = 1 ]; then
+      if [ -n "$redir" ]; then printf '{"url":"%s","ok":true,"code":"200","final":"%s"}\n' "$(_jesc "$url")" "$(_jesc "$redir")"
+      else printf '{"url":"%s","ok":true,"code":"200"}\n' "$(_jesc "$url")"; fi
+    elif [ -n "$redir" ]; then printf 'ok    %s  -> %s  (redirected; link the final canonical url)\n' "$url" "$redir"
+    else printf 'ok    %s\n' "$url"; fi
+    return 0
+  fi
+  hint="$(_codehint "${code:-000}")"
+  if [ "${CITE_XCHECK:-0}" = 1 ]; then
+    root="$(_host_root "$url")"; rcode="$(_probe "$root")"; rcode="${rcode%%|*}"
+    if [ "$rcode" = "200" ]; then hint="host root is 200 but this path is ${code:-000} , likely DEAD (page gone)"
+    else hint="host root is also ${rcode:-000} , likely a host-wide GATE not a dead page (confirm via a non-gated index)"; fi
+  fi
+  if [ "${CITE_JSON:-0}" = 1 ]; then printf '{"url":"%s","ok":false,"code":"%s","hint":"%s"}\n' "$(_jesc "$url")" "${code:-000}" "$(_jesc "$hint")"
+  else printf 'FAIL  %s  (HTTP %s , %s)\n' "$url" "${code:-000}" "$hint"; fi
+  return 1
+}
+
+cmd_verify() {
+  local url="${1:-}"; [ -n "$url" ] || usage
+  if [ "$url" = "-" ]; then
+    # batch: read urls on stdin, verify in PARALLEL (output unordered, each line complete), nonzero if any fail.
+    export CITE_JSON CITE_XCHECK
+    local results
+    # -n1 (not -I{}): -I has a 255-byte replstr limit that silently DROPS long urls; -n1 appends the
+    # url as a positional arg with no length cap, so a long dead url can't sail through as a false PASS.
+    results="$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -v '^[[:space:]]*$' | xargs -P 8 -n1 "$0" __vone 2>/dev/null)"
+    [ -n "$results" ] && printf '%s\n' "$results"
+    if [ "${CITE_JSON:-0}" = 1 ]; then printf '%s' "$results" | grep -q '"ok":false' && return 1 || return 0
+    else printf '%s' "$results" | grep -q '^FAIL' && return 1 || return 0; fi
+  fi
+  _verify_emit "$url"
+}
+
+# extract every link url from a file, one per line, deduped (order kept). covers BOTH markdown links
+# [text](url) , tolerant of one level of nested parens like wikipedia ..._(computing) , AND html
+# <a href="url"> anchors/badges (a README's top badges are html, not markdown , don't miss them).
+# mask out fenced (``` / ~~~) code blocks and inline `code` spans so example links inside them are not
+# treated as real links (a doc that documents a dead example url must not fail the gate, and lint --fix
+# must never rewrite content inside code).
+_mask_code() {
+  perl -0777 -pe '
+    s/<!--.*?-->//gs;
+    s/^[ \t]*(`{3,}|~{3,})[^\n]*\n.*?^[ \t]*\1[^\n]*$//gms;
+    s/``.*?``//gs;
+    s/`[^`\n]+`//g;
+  ' 2>/dev/null
+}
+cmd_links() {
+  local f="${1:-}"; [ -n "$f" ] || usage
+  [ -f "$f" ] || die "links: no file '$f'"
+  local urls rel masked
+  masked="$(_mask_code < "$f")"
+  # collapse images ![alt](src) to their alt text BEFORE link extraction: drops standalone badge srcs
+  # (images aren't citations) AND exposes the OUTER target of a linked badge [![alt](src)](target).
+  masked="$(printf '%s' "$masked" | perl -0777 -pe 's/!\[([^\]]*)\]\((?:[^()\s]|\([^()\s]*\))*\)/$1/g' 2>/dev/null)"
+  # every link FORM that renders clickable: inline [t](url), html href, reference defs [label]: url,
+  # angle-bracket autolinks <url>, bare urls. SLURP (-0777) like _strip/_lint_scan so a link whose
+  # visible text spans a soft line break is not silently dropped (the line-mode blind spot).
+  urls="$(printf '%s' "$masked" | perl -0777 -ne '
+    while(/\[[^\]]*\]\((https?:\/\/(?:[^()\s]|\([^()\s]*\))+)\)/g){print "$1\n"}
+    while(/href\s*=\s*(["\x27]?)(https?:\/\/[^"\x27\s>]+)\1/gi){print "$2\n"}
+    while(/^[ ]{0,3}\[[^\]]+\]:\s+(\S+)/mg){ my $u=$1; $u=~s/^<//; $u=~s/>$//; print "$u\n" if $u=~m{^https?://} }
+    while(/<(https?:\/\/[^>\s]+)>/g){print "$1\n"}
+    while(/(?:^|\s)(https?:\/\/[^\s<>()\[\]"\x27]+)/mg){ my $u=$1; $u=~s/[.,;:!?]+$//; print "$u\n" }
+  ' | awk '!seen[$0]++')"
+  # relative targets (not http) , inline + reference-definition. break outside the repo; absolutize the
+  # load-bearing ones. surfaced on --relative or --json.
+  rel="$(printf '%s' "$masked" | perl -0777 -ne '
+    while(/\[[^\]]*\]\(([^()\s][^()]*)\)/g){ my $u=$1; next if $u=~m{^https?://}; print "$u\n" }
+    while(/^[ ]{0,3}\[[^\]]+\]:\s+(\S+)/mg){ my $u=$1; $u=~s/^<//; $u=~s/>$//; next if $u=~m{^https?://}; print "$u\n" }
+  ' | awk '!seen[$0]++')"
+  if [ "${CITE_JSON:-0}" = 1 ]; then
+    local ju jr
+    ju="$(printf '%s' "$urls" | grep -v '^[[:space:]]*$' | while IFS= read -r u; do printf '"%s",' "$(_jesc "$u")"; done)"; ju="${ju%,}"
+    jr="$(printf '%s' "$rel"  | grep -v '^[[:space:]]*$' | while IFS= read -r u; do printf '"%s",' "$(_jesc "$u")"; done)"; jr="${jr%,}"
+    printf '{"urls":[%s],"relative":[%s]}\n' "$ju" "$jr"
+    return 0
+  fi
+  [ -n "$urls" ] && printf '%s\n' "$urls"
+  if [ "${CITE_REL:-0}" = 1 ] && [ -n "$rel" ]; then
+    printf 'relative links (not http , verify by hand; absolutize the load-bearing ones for portability):\n' >&2
+    printf '%s\n' "$rel" | sed 's/^/  /' >&2
+  fi
+  return 0
+}
+
+# reduce a doc to its PROSE for comparison: strip markdown links/images and html anchors to their
+# visible text, then tokenize any remaining url to <URL>. so fixing a dead link , including one whose
+# visible text is itself a url (the heroku half-fix) , reads as a no-op, while a real prose word change
+# (dumb->super-simple), a link-TEXT edit (mat->rug), or line-ending churn still shows up.
+_strip() {
+  perl -0777 -pe '
+    s/!?\[([^\]]*)\]\((?:[^()\s]|\([^()\s]*\))*\)/$1/g;
+    s/<a\b[^>]*?>(.*?)<\/a>/$1/gis;
+    s/https?:\/\/[^\s<>"]+/<URL>/g;
+  ' 2>/dev/null
+}
+
+# prove cite changed ONLY link markup in <file> vs <ref> (default HEAD): strip both versions to their
+# visible text and assert equality. catches prose rewrites, link-TEXT edits, and line-ending/whitespace
+# churn , the mechanical form of "the diff shows only link markup changed" (step 7), which a human or
+# agent can otherwise falsely self-certify (the corpus run's one blocking failure: dumb->super-simple).
+cmd_prove() {
+  local f="${1:-}" ref="${2:-HEAD}"; [ -n "$f" ] || usage
+  [ -f "$f" ] || die "prove: no file '$f'"
+  local dir base root rel old olds news
+  dir="$(cd "$(dirname "$f")" && pwd -P)" || die "prove: cannot resolve '$f'"
+  base="$(basename "$f")"
+  root="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || die "prove: not in a git repo: $f"
+  if [ "$dir" = "$root" ]; then rel="$base"; else rel="${dir#"$root"/}/$base"; fi
+  old="$(git -C "$root" show "$ref:$rel" 2>/dev/null)" || die "prove: '$rel' not found at $ref (new file? nothing to prove against)"
+  olds="$(printf '%s' "$old" | _strip)"
+  news="$(_strip < "$f")"
+  if [ "$olds" = "$news" ]; then
+    printf 'prove: %s , only link markup changed; prose intact.\n' "$rel"
+  else
+    printf 'prove: PROSE CHANGED in %s , cite must not rewrite prose. visible-text diff (- was, + now):\n' "$rel" >&2
+    diff <(printf '%s\n' "$olds") <(printf '%s\n' "$news") >&2
+    exit 1
+  fi
+}
+
+# lint for the "half-fix": a link whose VISIBLE TEXT is itself a url but differs from the href (href
+# repointed to a live canonical, stale/dead url left as the displayed text , the heroku pattern). cite
+# prove cannot catch this (a url->url text change is a no-op to it), so this is the mechanical backstop
+# the recurring failure needs. run it after editing; sync the visible text to the href, or use
+# descriptive text instead of a raw url.
+# scan for half-fixes; print one "text<TAB>href" line per offender (no decoration). code-masked so a
+# url-as-text link that is a teaching example inside ``` or `code` is not flagged (and never auto-fixed).
+_lint_scan() {
+  _mask_code < "$1" | perl -0777 -ne '
+    while(/(?<!\!)\[([^\]]*)\]\(((?:[^()\s]|\([^()\s]*\))+)\)/g){ my($t,$h)=($1,$2); print "$t\t$h\n" if $t=~m{^https?://} && $t ne $h }
+    while(/<a\b[^>]*?href\s*=\s*(["\x27]?)([^"\x27\s>]+)\1[^>]*>(.*?)<\/a>/gis){ my($h,$t)=($2,$3); $t=~s/<[^>]*>//gs; print "$t\t$h\n" if $t=~m{^https?://} && $t ne $h }
+  ' 2>/dev/null
+}
+cmd_lint() {
+  local f="${1:-}"; [ -n "$f" ] || usage
+  [ -f "$f" ] || die "lint: no file '$f'"
+  local fixed=0
+  if [ "${CITE_FIX:-0}" = 1 ]; then
+    local before; before="$(_lint_scan "$f")"
+    # the leading code-span alternative is kept verbatim ($c), so links inside ``` / `code` are never rewritten.
+    perl -0777 -i -pe 's{(<!--.*?-->|`{3,}[^\n]*\n.*?\n[ \t]*`{3,}[^\n]*|``.*?``|`[^`\n]+`)|(?<!\!)\[([^\]]*)\]\(((?:[^()\s]|\([^()\s]*\))+)\)}{ my($c,$t,$h)=($1,$2,$3); defined($c)?$c:(($t=~m{^https?://}&&$t ne $h)?"[$h]($h)":"[$t]($h)") }ges' "$f" 2>/dev/null
+    perl -0777 -i -pe 's{(<!--.*?-->|`{3,}[^\n]*\n.*?\n[ \t]*`{3,}[^\n]*|``.*?``|`[^`\n]+`)|(<a\b[^>]*?href\s*=\s*["\x27]?)([^"\x27\s>]+)(["\x27]?[^>]*>)(.*?)(</a>)}{ my($c,$p,$h,$m,$t,$q)=($1,$2,$3,$4,$5,$6); if(defined($c)){$c}else{ my $tt=$t; $tt=~s/<[^>]*>//gs; ($tt=~m{^https?://}&&$tt ne $h)?"$p$h$m$h$q":"$p$h$m$t$q" } }gise' "$f" 2>/dev/null
+    local b a; b="$(printf '%s' "$before" | grep -c .)"; a="$(_lint_scan "$f" | grep -c .)"
+    fixed=$(( b - a ))
+  fi
+  local out; out="$(_lint_scan "$f")"
+  if [ "${CITE_JSON:-0}" = 1 ]; then
+    local items=""
+    [ -n "$out" ] && items="$(printf '%s\n' "$out" | grep -v '^[[:space:]]*$' | while IFS="	" read -r t h; do printf '{"text":"%s","href":"%s"},' "$(_jesc "$t")" "$(_jesc "$h")"; done)" && items="${items%,}"
+    if [ -z "$out" ]; then printf '{"clean":true,"fixed":%s,"offenders":[]}\n' "$fixed"; return 0
+    else printf '{"clean":false,"fixed":%s,"offenders":[%s]}\n' "$fixed" "$items"; return 1; fi
+  fi
+  [ "${CITE_FIX:-0}" = 1 ] && printf 'lint --fix: %s , synced %s url-as-text half-fix(es) to their href.\n' "$f" "$fixed"
+  if [ -z "$out" ]; then [ "${CITE_FIX:-0}" = 1 ] || printf 'lint: %s , clean (no url-as-visible-text half-fixes).\n' "$f"; return 0; fi
+  printf 'lint: %s , a link shows a url as its visible text that differs from its href (run --fix, or sync manually):\n' "$f" >&2
+  printf '%s\n' "$out" | sed 's/	/  ->  /; s/^/  half-fix: /' >&2
+  return 1
+}
+
+# record a durable flag (dead pre-existing link, dubious/unsourced claim, misattribution) to
+# .cite-flags.md at the repo root, so 'flag, don't fabricate' findings survive as an inventory instead
+# of evaporating into a chat reply.
+cmd_flag() {
+  local f="${1:-}"; shift 2>/dev/null || true; local reason="$*"
+  { [ -n "$f" ] && [ -n "$reason" ]; } || die "flag: usage , cite flag <post> <reason...>"
+  [ -f "$f" ] || die "flag: no file '$f'"
+  local dir root rel ts
+  dir="$(cd "$(dirname "$f")" && pwd -P)" || die "flag: cannot resolve '$f'"
+  root="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || die "flag: not in a git repo: $f"
+  if [ "$dir" = "$root" ]; then rel="$(basename "$f")"; else rel="${dir#"$root"/}/$(basename "$f")"; fi
+  ts="$(date +%Y-%m-%d 2>/dev/null)"
+  printf -- '- [%s] %s , %s\n' "$ts" "$rel" "$reason" >> "$root/.cite-flags.md"
+  printf 'flag: recorded to %s/.cite-flags.md\n' "$root"
+}
+
+# sweep an entire batch/corpus run: for every .md changed vs <base>, run the two mechanical gates
+# (prove + lint) and report offenders. this is the harness-enforced backstop , a corpus run's per-post
+# agent diligence is uneven, so don't trust self-reports; sweep the whole diff at the end.
+cmd_sweep() {
+  local dir="${1:-}" base="${2:-}"
+  { [ -n "$dir" ] && [ -n "$base" ]; } || die "sweep: usage , cite sweep <repo-dir> <base-ref>"
+  [ -d "$dir" ] || die "sweep: no dir '$dir'"
+  local root; root="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || die "sweep: not a git repo: $dir"
+  git -C "$root" rev-parse --verify "$base^{commit}" >/dev/null 2>&1 || die "sweep: cannot resolve base ref '$base'"
+  local files n=0 pf=0 lf=0 rel
+  files="$(git -C "$root" diff --name-only "$base" -- '*.md' 2>/dev/null)"
+  [ -n "$files" ] || { printf 'sweep: no changed .md files vs %s.\n' "$base"; return 0; }
+  while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
+    n=$((n + 1))
+    if git -C "$root" cat-file -e "$base:$rel" 2>/dev/null; then
+      ( cmd_prove "$root/$rel" "$base" ) >/dev/null 2>&1 || { printf 'PROSE-CHANGED  %s\n' "$rel"; pf=$((pf + 1)); }
+    fi
+    ( cmd_lint "$root/$rel" ) >/dev/null 2>&1 || { printf 'HALF-FIX       %s\n' "$rel"; lf=$((lf + 1)); }
+  done <<EOF
+$files
+EOF
+  printf 'sweep: %s changed .md vs %s , %s prose-changed, %s half-fix.\n' "$n" "$base" "$pf" "$lf"
+  { [ "$pf" -eq 0 ] && [ "$lf" -eq 0 ]; }
+}
+
+# one-shot: run all the gates on a single post , verify every link, prove vs base, lint , and report a
+# consolidated PASS/ISSUES. lowers the per-post ceremony (four commands -> one) so agents skip fewer gates.
+cmd_check() {
+  local f="${1:-}" base="${2:-HEAD}"; [ -n "$f" ] || usage
+  [ -f "$f" ] || die "check: no file '$f'"
+  local dir root rel
+  dir="$(cd "$(dirname "$f")" && pwd -P 2>/dev/null)"
+  root="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || root=""
+  # verify all links; a failure whose url is recorded in .cite-flags.md is a KNOWN flagged link (the
+  # flag-don't-remove contract), so it counts as 'flagged, known', not a gate failure.
+  local links nlink vout u nfail=0 flagged=0 fu=""
+  links="$(CITE_JSON=0 CITE_REL=0 cmd_links "$f" 2>/dev/null)"
+  nlink="$(printf '%s' "$links" | grep -c .)"
+  [ -n "$links" ] && vout="$(printf '%s\n' "$links" | CITE_JSON=0 cmd_verify - 2>/dev/null)"
+  while IFS= read -r u; do
+    [ -n "$u" ] || continue
+    if [ -n "$root" ] && [ -f "$root/.cite-flags.md" ] && grep -qF "$u" "$root/.cite-flags.md" 2>/dev/null; then flagged=$((flagged + 1))
+    else nfail=$((nfail + 1)); fu="${fu}\"$(_jesc "$u")\","; fi
+  done <<EOF
+$(printf '%s\n' "${vout:-}" | awk '/^FAIL/{print $2}')
+EOF
+  fu="${fu%,}"
+  # prove WITH a reason , distinguish a real prose change (a failure) from prove being inapplicable
+  # (file absent at base / not a git repo), which is NOT a failure of the agent's edits.
+  local pstatus="ok" pfail=0
+  if [ -z "$root" ]; then pstatus="skipped (not a git repo)"
+  else
+    if [ "$dir" = "$root" ]; then rel="$(basename "$f")"; else rel="${dir#"$root"/}/$(basename "$f")"; fi
+    if ! git -C "$root" cat-file -e "$base:$rel" 2>/dev/null; then pstatus="skipped (file absent at $base)"
+    elif ( cmd_prove "$f" "$base" ) >/dev/null 2>&1; then pstatus="prose intact"
+    else pstatus="PROSE CHANGED vs $base"; pfail=1; fi
+  fi
+  local nlint; nlint="$(_lint_scan "$f" | grep -c .)"
+  local ok=1; { [ "$nfail" -eq 0 ] && [ "$pfail" -eq 0 ] && [ "${nlint:-0}" -eq 0 ]; } || ok=0
+  if [ "${CITE_JSON:-0}" = 1 ]; then
+    local off; off="$(_lint_scan "$f" | while IFS="	" read -r t h; do [ -n "$t" ] && printf '{"text":"%s","href":"%s"},' "$(_jesc "$t")" "$(_jesc "$h")"; done)"; off="${off%,}"
+    printf '{"file":"%s","links":%s,"link_failures":%s,"flagged_known":%s,"failed_urls":[%s],"prove":"%s","half_fixes":%s,"offenders":[%s],"ok":%s}\n' \
+      "$(_jesc "$f")" "${nlink:-0}" "$nfail" "$flagged" "$fu" "$(_jesc "$pstatus")" "${nlint:-0}" "$off" "$([ "$ok" -eq 1 ] && echo true || echo false)"
+    [ "$ok" -eq 1 ]; return
+  fi
+  printf 'check %s (vs %s):\n' "$f" "$base"
+  if [ "$flagged" -gt 0 ]; then printf '  links: %s checked, %s failed (%s flagged, known)\n' "${nlink:-0}" "$nfail" "$flagged"
+  else printf '  links: %s checked, %s failed\n' "${nlink:-0}" "$nfail"; fi
+  printf '  prove: %s\n' "$pstatus"
+  printf '  lint:  %s\n' "$([ "${nlint:-0}" -eq 0 ] && echo 'clean' || echo "${nlint} half-fix(es) , run cite lint --fix")"
+  [ "$ok" -eq 1 ] && printf '  => PASS\n' || printf '  => ISSUES (re-run the failing gate for detail)\n'
+  [ "$ok" -eq 1 ]
+}
+
+cmd_preflight() {
+  local dir="${1:-}"; [ -n "$dir" ] || usage
+  git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "not a git repo: $dir"
+  local remote slug sha pushed dirty
+  local vis
+  remote="$(git -C "$dir" remote get-url origin 2>/dev/null)" || remote="(none)"
+  slug="$(gh_slug "$remote" 2>/dev/null)" || slug="(not a github remote: $remote)"
+  sha="$(git -C "$dir" rev-parse HEAD 2>/dev/null)" || sha="(no HEAD)"
+  if sha_is_pushed "$dir" "$sha"; then pushed=yes; else pushed=no; fi
+  if [ -n "$(git -C "$dir" status --porcelain 2>/dev/null)" ]; then dirty=yes; else dirty=no; fi
+  vis="$(gh repo view "$slug" --json visibility -q '.visibility' 2>/dev/null | tr '[:upper:]' '[:lower:]')"
+  [ -n "$vis" ] || vis="unknown"
+  printf 'repo:       %s\nslug:       %s\nvisibility: %s\nHEAD:       %s\npushed:     %s\ndirty:      %s\n' \
+    "$dir" "$slug" "$vis" "$sha" "$pushed" "$dirty"
+  [ "$pushed" = yes ] || printf 'note:       HEAD is not pushed , pin with `cite permalink ... --ref origin/<branch>` (or push first), else the links 404.\n'
+  [ "$vis" = private ] && printf 'note:       repo is PRIVATE , do NOT cite it; its links 404 for anyone but you. find a public source or skip the cite.\n'
+  return 0
+}
+
+# global flags (inherited from env when re-invoked by xargs, else off): --json structured output,
+# --crosscheck dead-vs-gated root probe, --fix auto-repair (lint), --relative include relative links.
+CITE_JSON="${CITE_JSON:-0}"; CITE_XCHECK="${CITE_XCHECK:-0}"; CITE_FIX="${CITE_FIX:-0}"; CITE_REL="${CITE_REL:-0}"
+_a=()
+for _x in "$@"; do
+  case "$_x" in
+    --json)       CITE_JSON=1 ;;
+    --crosscheck) CITE_XCHECK=1 ;;
+    --fix)        CITE_FIX=1 ;;
+    --relative)   CITE_REL=1 ;;
+    *) _a+=("$_x") ;;
+  esac
+done
+set -- ${_a[@]+"${_a[@]}"}
+
+cmd="${1:-}"; shift || true
+case "$cmd" in
+  permalink) cmd_permalink "$@" ;;
+  verify)    cmd_verify "$@" ;;
+  preflight) cmd_preflight "$@" ;;
+  links)     cmd_links "$@" ;;
+  prove)     cmd_prove "$@" ;;
+  lint)      cmd_lint "$@" ;;
+  flag)      cmd_flag "$@" ;;
+  sweep)     cmd_sweep "$@" ;;
+  check)     cmd_check "$@" ;;
+  __vone)    _verify_emit "${1:-}" ;;
+  version|--version|-V) [ "${CITE_JSON:-0}" = 1 ] && printf '{"version":"%s"}\n' "$VERSION" || printf 'cite %s\n' "$VERSION" ;;
+  ""|-h|--help|help) usage 0 ;;
+  *) die "unknown subcommand '$cmd' (try: cite help)" ;;
+esac

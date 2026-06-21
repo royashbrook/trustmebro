@@ -1,0 +1,210 @@
+# cite , adversarial review log + backlog
+
+5 rounds of adversarial cold-agent review (2026-06-20), per Roy's goal: iterate corrections + reviews
+until the agents reach consensus the tool is useful, or 10 rounds. **consensus reached at round 5.**
+
+## round history (findings shrank each round = convergence)
+
+- **round 1 (v2 → v3):** 3 agents on foreign README / planted traps / code-spam bait. 7 findings:
+  resolves-vs-right (the verified-but-wrong link), undefined-audience, EXPLAIN-laundering, misattributed
+  concepts, "cite is not a fact-check" scope honesty, code-mode wrongly author-gated, html/parens blind
+  spots. all folded into v3.
+- **round 2 (v3 → v3.1):** both READY. 2 advisories: "drop any failing link" was unsafe (bot-gated
+  hosts false-fail), and the laundering rule needed a decision-test. folded into v3.1.
+- **round 3 (v3.1 → v3.2):** both READY (one NOT-READY was about the fake post, not the skill). bot-gated
+  rule had a false-KEEP hole (confirm existence via a non-gated registry index); canonical-not-just-live.
+  folded into v3.2.
+- **round 4 (v3.2 → v3.3):** both READY. findings now all TOOLING: html `<a href>` not extracted,
+  verify gave no code/hint scaffolding, flag-vs-drop ambiguity, prove-only-markup-changed. folded into
+  v3.3 (helper grew `cite links` html extraction + `cite verify` code+hint; skill got prose-integrity +
+  canonical-replacement).
+- **round 5 (v3.3 → v3.4):** both READY, consensus. one soft finding (zero-links is a valid outcome ,
+  folded in) + two deterministic ENHANCEMENTS (below), explicitly non-blocking.
+
+verdicts across rounds 2-5: READY, READY, READY, (post-not-tool), READY, READY, READY, READY.
+
+## corpus round (v3.4 -> v3.5): cite run on all 244 royashbrook.com posts + 4-lens adversarial review
+
+a real-world pass: 31 agents cited the whole blog corpus in place, then 4 reviewers (over-cite/laundering,
+dead-link/canonical, prose-integrity, under-cite) sampled the result. cite's link JUDGMENT passed well
+(~85% over-cite, ~85-90% dead-link, ~70% under-cite; under-links hard, zero laundering, strong canonical
+chasing). but it surfaced real failures, all folded into v3.5:
+
+1. **BLOCKING , a prose edit self-certified as markup-only** (`dumb-` -> `super-simple` on the blame post,
+   committed claiming markup-only). the "prove the diff is markup-only" step was a gut-check and the
+   attestation was simply false. FIX: `cite prove <file>` , mechanical gate, strips links to visible text
+   and asserts byte-identical-to-HEAD prose; fails on any prose edit, link-text change, or line-ending churn.
+2. **dead-link half-fix** (heroku: href repointed to canonical but the visible anchor text left as the dead
+   url; plus the identical dead link one line below missed). FIX: skill rule , fix EVERY occurrence of a
+   confirmed-dead url (href AND visible text AND other lines), or leave clean.
+3. **under-cite, central term skipped** (the bitwise-logic post left wholly untouched , its own subject
+   unlinked and its pre-existing dead links never verified). FIX: skill , link the post's CENTRAL term
+   first; never fully skip an in-scope post (at minimum verify its pre-existing links).
+4. **non-canonical redirect target** (macvlan link pointed at a 301 redirector). FIX: `cite verify` now
+   surfaces the redirect landing url (`-> <final>`) so the agent links the canonical home.
+5. **nit, CRLF churn** from agent editing tooling on ~10 posts , now caught for free by `cite prove`
+   (line-ending change != prose, so prove fails on it).
+
+## large-batch corpus round (v3.5 -> v3.6): 8 agents x ~31 posts, all 244 + re-review
+
+the at-scale pass that worked , larger batches dodged the burst rate-limit that killed the 31-agent run.
+8/8 batches, 244 posts, +45 links, 39 dead fixed, 111 flagged, 178 untouched. **all 66 edited files pass
+cite prove** (harness-swept independently, not agent self-report) , the v3.4 prose-integrity failure is
+fully closed. review ~88-94% per lens. two residuals prove/skill-prose couldn't stop, fixed in v3.6:
+
+1. **the half-fix recurred (~5 posts)** despite v3.5's rule , href fixed, visible dead-url text left.
+   prove can't catch it (url->url text is a no-op to it by design). FIX: `cite lint <file>` , mechanical
+   detector for a link whose visible text is a url differing from its href. rules-as-prose didn't stop it;
+   a check does.
+2. **flags evaporated** , 111 dead-pre-existing-links / dubious claims surfaced only in agent reports and
+   were lost (aggregated to a count twice). FIX: `cite flag <post> <reason>` appends to `.cite-flags.md`
+   at the repo root , the inventory persists.
+
+still open (process, not tooling): **skipped-post under-verification** , at 31 posts/agent a few in-scope
+posts (Riak central-term miss, EA/appharbor dead links) got skimmed. smaller batches cite deeper but hit
+the rate limit; bigger dodge it but skim. mitigation = a harness sweep (`cite lint`/`prove`/`verify` over
+ALL posts post-run) to catch skipped ones, not agent diligence.
+
+## dual review (v3.6 -> v3.8): the running code AND the skill-as-authored-artifact (+ mcp lens)
+
+5 cold agents: 2 hammered the CLI / verified the gates on the real corpus, 3 judged SKILL.md as a doc
+an outsider could use via MCP. verdict: strong doctrine, solid core, real edge-bugs + a delivery problem.
+
+v3.7 (code bugs, all fixed + tested):
+- `cite links` missed single-quoted html href (rode through unverified) while `cite lint` matched it (with
+  a spurious quote) , unified the href regex (', ", or none) across links/lint; both now EXCLUDE images
+  (negative-lookbehind on `!`), fixing v3.6's lint false-positive on a pre-existing image whose alt was a url.
+- `cite verify -` under-trimmed whitespace (one trailing char) , a url with stray spaces false-FAILed; now
+  trims properly. single-url verify now prints the ok/redirect line (matched the documented behavior).
+- `cite permalink` emitted invalid `#L0` and backwards `#L4-L2` (added start>=1 + start<=end) and miscounted
+  a file with no trailing newline via `wc -l` (now `awk NR`), which had wrongly rejected its last line.
+
+v3.8 (delivery + harness):
+- SKILL.md rewritten as a clean agent-to-agent spec (Roy: a public skill is by agents for agents, not in
+  his voice): quickstart + setup at top, the ~35% triplication cut (the old "contract" folded in), the
+  giant flow-step-5 broken into labeled dead-link rules, real punctuation instead of comma-as-em-dash.
+- `cite sweep <repo-dir> <base>` , runs prove + lint over every changed .md after a batch/corpus run.
+  the harness backstop, since per-post agent diligence is uneven (the gates' self-reports can't be trusted;
+  the corpus run produced zero `.cite-flags.md` despite flag-worthy items).
+- documented the prove footgun (run vs the BASE / pre-commit, not bare HEAD post-commit, or it self-passes).
+- README command list refreshed to the full set.
+
+mcp: judgment lives in SKILL.md prose and must travel as an MCP PROMPT/resource, not as tool descriptions,
+or you ship the safe-but-dumb half. permalink/preflight/flag are local-git/fs (don't remote); file-takers
+need inline-content variants; output should go `--json`. PLAN (Roy): build this as a separate MCP MIRROR
+that wraps the helper + serves the judgment as a prompt , do NOT bake mcp shape into the skill/helper.
+
+still open (process, not tooling): semantic correctness (the 1TB live-but-wrong redirect-to-index) is
+structurally invisible to prove+lint; mitigated by `cite sweep` + verify, not eliminated. it rides on agent
+judgment by design , cite is link-hygiene, not a fact-check.
+
+## independent "is it perfect" pass (v3.9 -> v3.10): 5 fresh agents, real holes found
+
+asked 5 cold agents to either find a real flaw or concede it is sound. they did NOT rubber-stamp , two
+serious bugs + several real ones, all fixed in v3.10:
+
+- **`cite verify -` silently passed any url > 255 bytes** , the parallel batch used `xargs -I{}`, whose
+  BSD replstr limit DROPS long lines; a long dead url returned rc=0/PASS with no output, breaking the
+  core gate (and check/sweep/the documented pipe). FIX: `xargs -P 8 -n1` (positional arg, no length cap).
+- **reference-style links were invisible** , `cite links` only saw inline + html, so a `[text][label]`
+  doc certified PASS with zero fetches (the adjudicator's catch: unchecked-but-vouched, the worst class).
+  FIX: extract `[label]: url` reference definitions too.
+- **`cite check` conflated prove failures** , reported "PROSE CHANGED" for not-in-git / file-absent-at-base
+  / real-prose-change alike; a clean NEW post vs its branch point read as ISSUES. FIX: check distinguishes
+  prove-inapplicable (skipped) from a real change, in text and json.
+- **--json hardening** , code field was number(200)/string("404") , now always string; `die` emits
+  `{"error":...,"ok":false}` under --json; `check --json` embeds failed_urls + offenders (self-sufficient);
+  `_jesc` escapes all control chars (valid JSON); batch verify documented as JSONL; added `cite version`.
+
+51 tests green (+7). doc: quickstart step 6 surfaces the base-ref footgun; known-limits notes ref-style
+coverage (+ the prove-url-no-op caveat) and the multi-line-html-anchor lint blind spot.
+
+deferred to the MCP MIRROR (not the helper): a full structured error envelope on EVERY path (usage/arg
+errors still go to stderr), a declared schema_version, and collecting batch JSONL into an array , these
+are mirror-shape concerns, per Roy's "mcp shape lives in the mirror, not the skill."
+
+## confirming pass (v3.10 -> v3.11): fixes hold, but fresh agents found a NEW class
+
+4 agents: one independently re-verified all four v3.10 fixes hold (real repros, suite green); the others
+hunted fresh. they did NOT rubber-stamp , a new class the prior 9 rounds missed, all fixed in v3.11:
+
+- **code-fence / inline-code blindness** , every extractor scanned raw bytes, so a link inside ``` or
+  `inline code` was treated as real. Two harms: (a) a doc documenting an example/dead url FAILED the gate
+  (false ISSUES), and (b) the dangerous inverse , `lint --fix` REWROTE a teaching example inside code,
+  and `prove` certified it green (url->url is a no-op to prove). FIX: `_mask_code` strips fenced + inline
+  code before extraction in links + lint; `lint --fix` uses a code-span-first alternation so it never
+  rewrites inside code.
+- **autolinks + bare urls not extracted** , `<https://x>` and bare prose urls render clickable but were
+  invisible, so a dead one rode through check as PASS (same unchecked-but-vouched class as the v3.10
+  ref-style hole, just two more forms). FIX: cmd_links now extracts both (code-masked).
+- **check vs flag-don't-remove contradiction** , a correctly-FLAGGED pre-existing dead link still failed
+  check, contradicting the headline rule. FIX: `cite check` treats a verify failure whose url is in
+  `.cite-flags.md` as "flagged, known", not a gate failure (flag the dead link WITH its url).
+
+61 tests green (+10). nits left on the record (not fixed): html-entity-in-href verified literally,
+url-with-interior-space word-split in batch, prove over-strict on a ref-label rename (conservative, never
+lets bad content through).
+
+## backlog , deterministic enhancements (non-blocking, surfaced round 5)
+
+worth building when cite gets more investment; the skill's prose already mandates the manual versions,
+and a careful agent reaches the right answer without them.
+
+1. **`cite verify --crosscheck` (root-probe gated-vs-dead).** today the dead-vs-gated call is the
+   agent's manual cross-check. mechanize it: on a non-200, also probe the host root , `root also 403 ->
+   likely host-wide gate (keep, confirm existence)`, `root 200 + page 404 -> likely dead`. turns a
+   reassuring-but-passive hint into a deterministic verdict, closing the "weaker agent rubber-stamps all
+   403s as gated" risk.
+2. **`cite links --relative` (surface repo-relative links).** `cite links` emits only `http(s)://`, so
+   repo-relative links (`LICENSE-APACHE`, `#anchors`) are invisible to both verify and the inventory ,
+   yet absolutizing them is often the highest-value fix on a foreign README read outside its repo. emit
+   them (separately / on stderr) so the agent can absolutize by hand instead of eyeballing raw markdown.
+
+## what held up under fire (don't regress these)
+
+the judgment core converged and was battle-tested: reader-first + the generalist-reader tiebreaker,
+under-link (incl. zero), explain > substantiate > show-code, the laundering trap + its decision-test,
+flag-don't-fabricate (incl. misattributed concepts), resolves-AND-right, public-only, dead-vs-gated via
+non-gated cross-check, don't-rewrite-prose-and-prove-it. these are the spine.
+
+## confirming pass (v3.11 -> v3.12): fixes hold, three more extractor edges found
+
+3 agents: one verified all v3.11 fixes hold (SOUND, fresh repros, suite green). the other two found three
+more real holes, ALL in the one regex link-extractor, all fixed in v3.12:
+
+- BLOCKING: a markdown link whose visible TEXT spans a soft line break was invisible , cmd_links was
+  line-mode (`perl -ne`) while its siblings _strip/_lint_scan slurp (`-0777`); the `[^\]]*` text class
+  only crosses a newline in slurp mode. a dead multi-line-text link certified PASS. FIX: cmd_links now
+  slurps too (-0777, /m on the ^-anchored patterns).
+- REAL: linked-image / clickable badge `[![alt](src)](target)` , the inline regex matched `[![alt](src)`
+  and emitted the IMAGE SRC while the real outer TARGET rode through unchecked (a dead badge target = PASS).
+  bites hardest on badge-dense foreign READMEs, which the blog-post corpus rounds never exercised. FIX:
+  collapse `![alt](src)` -> alt before extraction, so images vanish (src never emitted) and the outer
+  target is exposed.
+- REAL: html comments not masked , a link inside `<!-- ... -->` doesn't render but was extracted + failed
+  (false ISSUES on a commented-out link). FIX: _mask_code strips `<!-- ... -->` (and lint --fix protects it).
+- nit: the VERSION constant lagged SKILL frontmatter (said 3.10.0); now synced.
+
+67 tests green. CONVERGENCE NOTE: every recent pass closes the real holes and the next finds a narrower
+markdown form (ref-style -> autolinks/bare -> code-fences -> multi-line/linked-image/html-comment). a
+regex extractor has an irreducible long tail; "provably complete" extraction means a CommonMark-AST
+parser, which trades the bash+perl lightweight contract. the gates (prove/lint) and judgment core are
+sound; extraction is best-effort-regex with a shrinking, documented tail.
+
+## scope resolution (v3.13): the full link-audit is OPTIONAL, never a gate
+
+the convergence question (regex extraction has an asymptotic markdown-edge tail , chase it forever, or
+rebuild on a CommonMark parser and lose the lightweight contract?) went to Roy. his call reframed the
+whole thing: cite's MAIN job is adding sensible links (pure agent judgment, no extraction involved). the
+exhaustive "verify every pre-existing link in the doc" is a separate AUDIT feature , and it should be
+OPTIONAL, offered to the user, and must NEVER hang up the main purpose.
+
+so the doctrine, settled:
+- MANDATORY gate: the links you ADD resolve + are right; `cite prove` (no prose changed); `cite lint`
+  (no half-fix you introduced). these are cheap, exact, and never about exotic markdown forms.
+- OPTIONAL bonus: `cite check` / `cite links | cite verify -` audits every pre-existing link for rot.
+  best-effort (the extraction tail lives ONLY here), offered as a courtesy, never blocking.
+
+this dissolves the asymptote: the regex tail only ever affected the optional audit, not the core job. no
+CommonMark-parser rebuild needed; the lightweight bash+perl contract stays. the adversarial loop closes
+here , the agents had shifted to mining markdown-parser trivia in a secondary path.

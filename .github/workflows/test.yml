@@ -1,0 +1,26 @@
+name: test
+
+# MANUAL ONLY , never runs on push/PR (don't burn runner minutes).
+# fire from the Actions tab or:  gh workflow run test.yml [-f os=ubuntu-latest]
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: which runner(s) to test
+        type: choice
+        default: all
+        options: [all, ubuntu-latest, macos-latest]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(inputs.os == 'all' && '["ubuntu-latest","macos-latest"]' || format('["{0}"]', inputs.os)) }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: run tests
+        run: |
+          chmod +x cite test/test.sh
+          ./test/test.sh
