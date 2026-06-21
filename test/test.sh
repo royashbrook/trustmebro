@@ -241,5 +241,16 @@ printf 'real [a](https://real.example/a). <!-- [b](https://commented.example/b) 
 "$CITE" links "$mlx" | grep -q 'commented.example' && bad "links: html-comment link should be masked" || ok "links: html comment masked"
 rm -f "$mlx"
 
+# 21. flag-downgrade must be EXACT-url, not substring (a prefix dead url must not ride on a longer flag)
+printf 'a [x](https://dead-zzz.invalid/page) and [y](https://dead-zzz.invalid/page-two).\n' > "$fix/pre.md"
+git -C "$fix" add pre.md; git -C "$fix" commit -qm pre
+"$CITE" flag "$fix/pre.md" "known dead: https://dead-zzz.invalid/page-two" >/dev/null 2>&1
+pout="$("$CITE" check "$fix/pre.md" HEAD 2>/dev/null)"
+{ printf '%s' "$pout" | grep -q '1 flagged' && printf '%s' "$pout" | grep -q 'ISSUES'; } && ok "flag-downgrade is exact-url (prefix not vouched)" || bad "flag substring false-PASS (got: $pout)"
+# flag with no url in the reason warns
+fwarn="$("$CITE" flag "$fix/pre.md" "this one is dead, trust me" 2>&1)"
+printf '%s' "$fwarn" | grep -q 'no url in the reason' && ok "flag warns when reason has no url" || bad "flag should warn on a url-less reason"
+rm -f "$fix/pre.md" "$fix/.cite-flags.md"
+
 echo "# done. failures: $fails"
 [ "$fails" -eq 0 ]

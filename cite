@@ -14,7 +14,7 @@ set +x 2>/dev/null || true
 unset BASH_XTRACEFD 2>/dev/null || true
 set -uo pipefail
 
-VERSION=3.15.1
+VERSION=3.16.0
 
 die() {
   [ "${CITE_JSON:-0}" = 1 ] && printf '{"error":"%s","ok":false}\n' "$(_jesc "$1")"
@@ -322,6 +322,15 @@ cmd_flag() {
   ts="$(date +%Y-%m-%d 2>/dev/null)"
   printf -- '- [%s] %s , %s\n' "$ts" "$rel" "$reason" >> "$root/.cite-flags.md"
   printf 'flag: recorded to %s/.cite-flags.md\n' "$root"
+  case "$reason" in *http://*|*https://*) : ;;
+    *) printf 'flag: note , no url in the reason; cite check can only downgrade a dead link to "flagged, known" if its url is in the reason.\n' >&2 ;;
+  esac
+}
+
+# is <url> recorded in <flags-file>? matches the url as a WHOLE token (extract urls + exact-compare),
+# NOT a raw substring , so flagging a longer url can't silently vouch a shorter dead url that is its prefix.
+_flagged() {
+  grep -oE 'https?://[^[:space:]]+' "$1" 2>/dev/null | sed 's/[.,;:!?]*$//' | grep -qxF "$2"
 }
 
 # sweep an entire batch/corpus run: for every .md changed vs <base>, run the two mechanical gates
@@ -366,7 +375,7 @@ cmd_check() {
   [ -n "$links" ] && vout="$(printf '%s\n' "$links" | CITE_JSON=0 cmd_verify - 2>/dev/null)"
   while IFS= read -r u; do
     [ -n "$u" ] || continue
-    if [ -n "$root" ] && [ -f "$root/.cite-flags.md" ] && grep -qF "$u" "$root/.cite-flags.md" 2>/dev/null; then flagged=$((flagged + 1))
+    if [ -n "$root" ] && [ -f "$root/.cite-flags.md" ] && _flagged "$root/.cite-flags.md" "$u"; then flagged=$((flagged + 1))
     else nfail=$((nfail + 1)); fu="${fu}\"$(_jesc "$u")\","; fi
   done <<EOF
 $(printf '%s\n' "${vout:-}" | awk '/^FAIL/{print $2}')

@@ -208,3 +208,22 @@ so the doctrine, settled:
 this dissolves the asymptote: the regex tail only ever affected the optional audit, not the core job. no
 CommonMark-parser rebuild needed; the lightweight bash+perl contract stays. the adversarial loop closes
 here , the agents had shifted to mining markdown-parser trivia in a secondary path.
+
+## clarity + simplicity pass (v3.15 -> v3.16): a real bug + a 40% trim
+
+3 cold agents (ruthless editor / cold mission-reader / features critic). verdict: mission clear, name strong,
+feature-complete for its scope, but one real bug + heavy redundancy:
+
+- REAL BUG (false PASS): `cite check`'s flag-downgrade used a substring `grep -qF`, so flagging a LONGER url
+  silently vouched a SHORTER dead url that is its prefix (e.g. flag /page-two -> /page rides through as
+  "flagged, known"). reopened the unchecked-but-vouched hole in flag matching. FIX: `_flagged` extracts urls
+  from .cite-flags.md and EXACT-matches (grep -oE | grep -qxF). + `cite flag` now warns if the reason has no
+  url (the downgrade key would be missing).
+- SIMPLICITY: SKILL.md said every rule 3-4 times (137 lines / ~4.6K tokens). rewrote to one-home-per-rule:
+  led the description + body with a plain one-line WHAT, moved Setup below the Quickstart, cut the
+  worked-example section, halved known-limits, folded the link-form inventory + the audit rule + the
+  live-but-wrong rule to single homes. ~40% shorter, zero load-bearing rule lost.
+
+noted, not built (in-scope future): a diff-aware "verify only the links I ADDED" mode (so the mandatory
+gate matches the agent's responsibility without fusing the optional audit); `cite flag --url` as a
+first-class arg; relative-link absolutize using the known slug. all natural in-mission extensions.
