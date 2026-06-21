@@ -247,3 +247,24 @@ findings, all addressed:
   a stripped index was steering toward a live-but-wrong link); SKILL Setup now says clone the helper OUTSIDE
   the post repo (cloning inside committed it as a gitlink); added the central-term-vs-launder caveat to step 1.
 70 tests green.
+
+## tightened cycle (v3.17 -> v3.18): the insert feature we just shipped had a BLOCKING bug
+
+mandate changed to failure-and-refusal only (no wishlist), run cold across copilot + 2 claude subagents.
+copilot cited fine (cross-model still holds). the claude runs found a blocking bug + doc drift , and it was
+in `cite insert`, the v3.17 addition. proof that every new feature breeds the next cycle's finding.
+
+- BLOCKING (corrupted-but-vouched): `cite insert` did a raw whole-file substitution , it wrapped a phrase
+  inside a `code` span / fence (e.g. `pip install [requests](url)`), and `prove` certified it clean (it
+  stripped the in-code link to text on both sides = a no-op). the same divergence class as the tilde bug:
+  code-protection lived in _mask_code but insert + prove's _strip were never wired to it.
+- FIX (structural, kills the divergence class): ONE shared code-region pattern `CITE_CR`, consumed by
+  _mask_code, _strip, cmd_insert, and both lint --fix regexes. insert now wraps the first occurrence
+  OUTSIDE code AND outside an existing link (also fixes the double-insert `[[x](u)](u)` nesting bug),
+  erroring if there's no citable occurrence. _strip leaves code regions verbatim, so a link injected into
+  code shows as a diff and prove FAILS instead of self-passing.
+- doc drift (A-1b): README/comment said insert "errors on >1"; it links the first (v3.17.1). corrected.
+- footgun nudge (A-1d): a bare `cite prove` after committing self-passes; prove now notes when the file is
+  identical to HEAD and tells you to pass the base ref.
+73 tests green (+3, incl. insert-in-code, prove-catches-in-code, double-insert-no-nest). the laundering
+false-confidence (A-1a) is the documented is-it-right ceiling, not a defect , gates check mechanics, not judgment.

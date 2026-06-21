@@ -265,10 +265,30 @@ if curl -fsS -o /dev/null --max-time 8 https://example.com 2>/dev/null; then
   "$CITE" insert "$ins" "raft phrase" https://example.com >/dev/null 2>&1
   grep -qF '[raft phrase](https://example.com)' "$ins" && ok "insert wraps a unique match" || bad "insert should wrap a unique phrase"
   out2="$("$CITE" insert "$ins" "token bucket" https://example.com 2>&1)"; rc2=$?
-  { [ "$rc2" -eq 0 ] && printf '%s' "$out2" | grep -q 'appears 2 times'; } && ok "insert >1 links first + notes (no error)" || bad "insert >1 should link first + note"
+  { [ "$rc2" -eq 0 ] && printf '%s' "$out2" | grep -q 'citable occurrences'; } && ok "insert >1 links first + notes (no error)" || bad "insert >1 should link first + note"
   [ "$(grep -coF '[token bucket](https://example.com)' "$ins")" = "1" ] && ok "insert wraps only the FIRST of several" || bad "insert should wrap only the first occurrence"
 else ok "insert wrap/multi (skipped, offline)"; fi
 rm -f "$ins"
+
+# 24. v3.18: insert + prove are code-aware (the blocking corrupted-but-vouched bug)
+cz="$fix/cz.md"
+printf 'install with `pip install reqlib` to begin.\n' > "$cz"; git -C "$fix" add cz.md; git -C "$fix" commit -qm cz
+out="$("$CITE" insert "$cz" "reqlib" https://example.com 2>&1)"; rc=$?
+{ [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q 'citable prose'; } && ok "insert refuses a phrase that only appears in code" || bad "insert should refuse a code-only phrase"
+# prove FAILS on a link injected into a fenced code block (was a false PASS)
+printf 'see:\n\n```\nwidgetlib here\n```\n' > "$cz"; git -C "$fix" add cz.md; git -C "$fix" commit -qm cz2
+perl -i -pe 's/widgetlib here/[widgetlib](https:\/\/example.com) here/' "$cz"
+"$CITE" prove "$cz" HEAD >/dev/null 2>&1 && bad "prove should FAIL on an in-code link injection" || ok "prove catches a link injected into code"
+# double-insert leaves no nested [[..](..)](..)
+printf 'we use widgetlib in prod.\n' > "$cz"; git -C "$fix" add cz.md; git -C "$fix" commit -qm cz3
+if curl -fsS -o /dev/null --max-time 8 https://example.com 2>/dev/null; then
+  "$CITE" insert "$cz" "widgetlib" https://example.com >/dev/null 2>&1
+  "$CITE" insert "$cz" "widgetlib" https://example.com >/dev/null 2>&1
+  grep -q '\[\[' "$cz" && bad "double-insert nested the link" || ok "double-insert does not nest (skips existing link)"
+else ok "double-insert (skipped, offline)"; fi
+rm -f "$cz"
+
+echo "# done. failures: $fails"
 
 echo "# done. failures: $fails"
 [ "$fails" -eq 0 ]

@@ -191,14 +191,11 @@ cmd_verify() {
 # mask out fenced (``` / ~~~) code blocks and inline `code` spans so example links inside them are not
 # treated as real links (a doc that documents a dead example url must not fail the gate, and lint --fix
 # must never rewrite content inside code).
-_mask_code() {
-  perl -0777 -pe '
-    s/<!--.*?-->//gs;
-    s/^[ \t]*(`{3,}|~{3,})[^\n]*\n.*?^[ \t]*\1[^\n]*$//gms;
-    s/``.*?``//gs;
-    s/`[^`\n]+`//g;
-  ' 2>/dev/null
-}
+# THE single definition of a "code region": html comment, fenced (``` or ~~~) block, double/single inline
+# code. everything that must skip code , _mask_code, _strip (prove), cmd_insert, lint --fix , consumes
+# this one pattern via $ENV{CITE_CR}, so they can never diverge (the class behind the tilde + insert bugs).
+export CITE_CR='<!--.*?-->|(?:`{3,}|~{3,})[^\n]*\n.*?\n[ \t]*(?:`{3,}|~{3,})[^\n]*|``.*?``|`[^`\n]+`'
+_mask_code() { perl -0777 -pe 'my $cr=$ENV{CITE_CR}; s/$cr//gs' 2>/dev/null; }
 cmd_links() {
   local f="${1:-}"; [ -n "$f" ] || usage
   [ -f "$f" ] || die "links: no file '$f'"
@@ -244,9 +241,15 @@ cmd_links() {
 # (dumb->super-simple), a link-TEXT edit (mat->rug), or line-ending churn still shows up.
 _strip() {
   perl -0777 -pe '
-    s/!?\[([^\]]*)\]\((?:[^()\s]|\([^()\s]*\))*\)/$1/g;
-    s/<a\b[^>]*?>(.*?)<\/a>/$1/gis;
-    s/https?:\/\/[^\s<>"]+/<URL>/g;
+    my $cr=$ENV{CITE_CR};
+    my @p = split /($cr)/s, $_;            # odd indices = code regions, left VERBATIM
+    for my $i (0..$#p) {
+      next if $i % 2;                       # so a link injected INTO code shows as a diff (prove fails),
+      $p[$i] =~ s/!?\[([^\]]*)\]\((?:[^()\s]|\([^()\s]*\))*\)/$1/g;   # not a markup-only no-op.
+      $p[$i] =~ s/<a\b[^>]*?>(.*?)<\/a>/$1/gis;
+      $p[$i] =~ s/https?:\/\/[^\s<>"]+/<URL>/g;
+    }
+    $_ = join "", @p;
   ' 2>/dev/null
 }
 
@@ -267,6 +270,10 @@ cmd_prove() {
   news="$(_strip < "$f")"
   if [ "$olds" = "$news" ]; then
     printf 'prove: %s , only link markup changed; prose intact.\n' "$rel"
+    # footgun guard: a bare prove (default HEAD) after committing compares the file to its own commit and
+    # passes trivially. if there's no diff at all vs HEAD, nudge to pass the base ref.
+    [ -z "${2:-}" ] && git -C "$root" diff --quiet HEAD -- "$rel" 2>/dev/null && \
+      printf 'prove: note , %s is identical to HEAD (nothing to prove). if you already committed the cites, pass the base ref: cite prove %s <base>.\n' "$rel" "$base" >&2
   else
     printf 'prove: PROSE CHANGED in %s , cite must not rewrite prose. visible-text diff (- was, + now):\n' "$rel" >&2
     diff <(printf '%s\n' "$olds") <(printf '%s\n' "$news") >&2
@@ -294,8 +301,8 @@ cmd_lint() {
   if [ "${CITE_FIX:-0}" = 1 ]; then
     local before; before="$(_lint_scan "$f")"
     # the leading code-span alternative is kept verbatim ($c), so links inside ``` / `code` are never rewritten.
-    perl -0777 -i -pe 's{(<!--.*?-->|[ \t]*(?:`{3,}|~{3,})[^\n]*\n.*?\n[ \t]*(?:`{3,}|~{3,})[^\n]*|``.*?``|`[^`\n]+`)|(?<!\!)\[([^\]]*)\]\(((?:[^()\s]|\([^()\s]*\))+)\)}{ my($c,$t,$h)=($1,$2,$3); defined($c)?$c:(($t=~m{^https?://}&&$t ne $h)?"[$h]($h)":"[$t]($h)") }ges' "$f" 2>/dev/null
-    perl -0777 -i -pe 's{(<!--.*?-->|[ \t]*(?:`{3,}|~{3,})[^\n]*\n.*?\n[ \t]*(?:`{3,}|~{3,})[^\n]*|``.*?``|`[^`\n]+`)|(<a\b[^>]*?href\s*=\s*["\x27]?)([^"\x27\s>]+)(["\x27]?[^>]*>)(.*?)(</a>)}{ my($c,$p,$h,$m,$t,$q)=($1,$2,$3,$4,$5,$6); if(defined($c)){$c}else{ my $tt=$t; $tt=~s/<[^>]*>//gs; ($tt=~m{^https?://}&&$tt ne $h)?"$p$h$m$h$q":"$p$h$m$t$q" } }gise' "$f" 2>/dev/null
+    perl -0777 -i -pe 's{($ENV{CITE_CR})|(?<!\!)\[([^\]]*)\]\(((?:[^()\s]|\([^()\s]*\))+)\)}{ my($c,$t,$h)=($1,$2,$3); defined($c)?$c:(($t=~m{^https?://}&&$t ne $h)?"[$h]($h)":"[$t]($h)") }ges' "$f" 2>/dev/null
+    perl -0777 -i -pe 's{($ENV{CITE_CR})|(<a\b[^>]*?href\s*=\s*["\x27]?)([^"\x27\s>]+)(["\x27]?[^>]*>)(.*?)(</a>)}{ my($c,$p,$h,$m,$t,$q)=($1,$2,$3,$4,$5,$6); if(defined($c)){$c}else{ my $tt=$t; $tt=~s/<[^>]*>//gs; ($tt=~m{^https?://}&&$tt ne $h)?"$p$h$m$h$q":"$p$h$m$t$q" } }gise' "$f" 2>/dev/null
     local b a; b="$(printf '%s' "$before" | grep -c .)"; a="$(_lint_scan "$f" | grep -c .)"
     fixed=$(( b - a ))
   fi
@@ -316,26 +323,33 @@ cmd_lint() {
 # record a durable flag (dead pre-existing link, dubious/unsourced claim, misattribution) to
 # .cite-flags.md at the repo root, so 'flag, don't fabricate' findings survive as an inventory instead
 # of evaporating into a chat reply.
-# safely ADD one citation: verify the url, require the phrase to occur EXACTLY ONCE (literal match), then
-# wrap that one occurrence in the doc's format. a missed add (0 matches) or an ambiguous one (>1) ERRORS
-# instead of silently riding through the gates , the one safety net the add half otherwise lacked.
+# safely ADD one citation: verify the url, then wrap the FIRST occurrence of the phrase that is NOT inside
+# a code region OR an already-existing link , so a teaching example in code is never corrupted (B's bug)
+# and a re-run can't nest [[x](u)](u) (the double-insert bug). errors on 0 citable occurrences (missed add);
+# links a term once on purpose (no every-occurrence mode).
 cmd_insert() {
   local f="${1:-}" phrase="${2:-}" url="${3:-}"
   { [ -n "$f" ] && [ -n "$phrase" ] && [ -n "$url" ]; } || die "insert: usage , cite insert <file> <phrase> <url>"
   [ -f "$f" ] || die "insert: no file '$f'"
-  local n; n="$(CITE_PHRASE="$phrase" perl -0777 -ne 'my $p=quotemeta($ENV{CITE_PHRASE}); my $c=()=/$p/g; print $c+0' "$f" 2>/dev/null)"
-  [ "${n:-0}" -ge 1 ] 2>/dev/null || die "insert: phrase not found in $f , nothing inserted (check the exact text / spacing)"
+  # the "protected" regions insert must skip: code (shared CITE_CR) + existing md/html links.
+  local n; n="$(CITE_PHRASE="$phrase" perl -0777 -ne '
+    my $prot = qr/$ENV{CITE_CR}|(?<!\!)\[[^\]]*\]\((?:[^()\s]|\([^()\s]*\))*\)|<a\b[^>]*?>.*?<\/a>/s;
+    my @p = split /($prot)/, $_; my $q=quotemeta($ENV{CITE_PHRASE}); my $c=0;
+    for my $i (0..$#p){ next if $i%2; $c += (() = $p[$i] =~ /$q/g) }
+    print $c+0' "$f" 2>/dev/null)"
+  [ "${n:-0}" -ge 1 ] 2>/dev/null || die "insert: '$phrase' not found in citable prose in $f (it may appear only inside code or an existing link, which cite won't touch)"
   local code; code="$(_probe "$url")"; code="${code%%|*}"
   [ "$code" = "200" ] || die "insert: $url -> HTTP ${code:-000} ($(_codehint "${code:-000}")) , not inserting an unverified link"
-  # wraps the FIRST occurrence only (cite links a term once, at its first mention). cite does NOT have an
-  # every-occurrence mode on purpose , linking every mention is per-sentence spam; instruct the agent if
-  # you truly want that. the only hard error is 0 matches (a missed add), caught above.
-  case "$f" in
-    *.html|*.htm) CITE_PHRASE="$phrase" CITE_URL="$url" perl -0777 -i -pe 's/\Q$ENV{CITE_PHRASE}\E/"<a href=\"".$ENV{CITE_URL}."\">".$ENV{CITE_PHRASE}."<\/a>"/e' "$f" ;;
-    *)            CITE_PHRASE="$phrase" CITE_URL="$url" perl -0777 -i -pe 's/\Q$ENV{CITE_PHRASE}\E/"[".$ENV{CITE_PHRASE}."](".$ENV{CITE_URL}.")"/e' "$f" ;;
-  esac
+  local fmt=md; case "$f" in *.html|*.htm) fmt=html;; esac
+  CITE_PHRASE="$phrase" CITE_URL="$url" CITE_FMT="$fmt" perl -0777 -i -pe '
+    my $prot = qr/$ENV{CITE_CR}|(?<!\!)\[[^\]]*\]\((?:[^()\s]|\([^()\s]*\))*\)|<a\b[^>]*?>.*?<\/a>/s;
+    my @p = split /($prot)/, $_; my $q=quotemeta($ENV{CITE_PHRASE}); my $done=0; my $html=($ENV{CITE_FMT} eq "html");
+    for my $i (0..$#p){ next if $i%2 || $done;
+      if($html){ $done=1 if $p[$i] =~ s/$q/"<a href=\"".$ENV{CITE_URL}."\">".$ENV{CITE_PHRASE}."<\/a>"/e }
+      else     { $done=1 if $p[$i] =~ s/$q/"[".$ENV{CITE_PHRASE}."](".$ENV{CITE_URL}.")"/e } }
+    $_ = join "", @p' "$f" 2>/dev/null
   printf 'insert: wrapped "%s" -> %s in %s\n' "$phrase" "$url" "$f"
-  [ "$n" -gt 1 ] 2>/dev/null && printf 'insert: note , "%s" appears %s times; linked the FIRST. pass a longer unique phrase to target a specific one.\n' "$phrase" "$n" >&2
+  [ "$n" -gt 1 ] 2>/dev/null && printf 'insert: note , "%s" has %s citable occurrences; linked the FIRST. pass a longer unique phrase to target another.\n' "$phrase" "$n" >&2
   return 0
 }
 
