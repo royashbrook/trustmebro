@@ -24,52 +24,22 @@ die() {
 
 usage() {
   cat >&2 <<'EOF'
-cite , verified citation links for an agent.
+cite , verified citation links for an agent. The agent decides WHAT to cite; this builds + checks. Full doctrine: SKILL.md.
 
-  cite permalink <repo-dir> <path> <start> [end] [--ref <ref>]
-        build a SHA-pinned github blob permalink for path#Lstart-Lend. by default pins to the repo's
-        HEAD sha, but REFUSES if HEAD isn't pushed to a remote (the link would 404) , pass
-        --ref origin/<branch> (or any pushed ref/sha) to pin to a public commit. validates the file +
-        line range EXIST at the chosen sha; errors (emits nothing) if not.
-  cite verify <url>
-        exit 0 if <url> resolves (HTTP 200), nonzero otherwise. for external cites + a final check
-        that a code permalink's sha is actually public.
-  cite links <file>
-        print every markdown-link url in <file>, one per line (paren-safe). pipe to verify:
-        cite links post.md | cite verify -
-  cite insert <file> <phrase> <url>
-        safely add one citation: verify <url>, then wrap the FIRST occurrence of <phrase> in the doc's
-        format (md or html). errors only on 0 matches (a missed add); notes if <phrase> occurs several
-        times (it links the first , cite has no every-occurrence mode on purpose).
-  cite prove <file> [ref]
-        prove cite only touched LINK MARKUP: strip links to visible text in <file> and in <ref>
-        (default HEAD) and assert they match. nonzero + a diff if any prose/text/whitespace changed.
-        run after editing; it's the mechanical version of the don't-rewrite-prose contract.
-  cite lint <file>
-        catch the "half-fix": a link whose visible text is a url that differs from its href (href
-        repointed, stale url left as displayed text). nonzero + the offenders if any. prove can't see
-        these (url->url text is a no-op to it), so run lint too.
-  cite flag <post> <reason...>
-        append a durable flag (dead pre-existing link, dubious claim, misattribution) to .cite-flags.md
-        at the repo root, so 'flag, don't fabricate' findings persist as an inventory.
-  cite sweep <repo-dir> <base-ref>
-        run prove + lint over every .md changed vs <base-ref> and report offenders. the harness backstop
-        for a batch/corpus run, where per-post agent diligence is uneven , don't trust self-reports.
-  cite check <post> [base-ref]
-        one-shot: verify every link + prove (vs base, default HEAD) + lint, and report PASS/ISSUES.
-        the per-post happy path , four gates in one command.
-  cite preflight <repo-dir>
-        print the repo's citing state: github slug, HEAD sha, whether HEAD is pushed, dirty/clean.
-        run this BEFORE citing so you pin to a public sha from the start.
-
+  cite verify <url> | cite verify -   resolves? HTTP code + dead-vs-gated hint + redirect (batch: parallel, JSONL)
+  cite links <file>                   every link url (md / html href / refs / autolinks / bare), images excluded
+  cite insert <file> <phrase> <url>   verify <url> + wrap the FIRST citable match (skips code + existing links)
+  cite prove <file> [ref]             assert ONLY link markup changed vs ref (default HEAD); fails on any prose edit
+  cite lint <file>                    catch the url-as-text half-fix (--fix syncs it)
+  cite flag <post> <reason...>        record a dead link / dubious claim (with its url) to .cite-flags.md
+  cite check <post> [base]            optional audit: verify all links + prove + lint -> PASS/ISSUES
+  cite sweep <repo-dir> <base>        prove + lint over every changed .md (batch backstop)
+  cite preflight <repo-dir>           (code mode) slug / HEAD / pushed / visibility
+  cite permalink <repo-dir> <path> <start> [end] [--ref <ref>]   (code mode) sha-pinned, range-validated
   cite version
-        print the helper version (add --json for {"version":...}).
 
-Global flags: --json (structured output on links/verify/lint/check; batch verify emits JSONL, one
-object per line; errors emit {"error":...,"ok":false}), --crosscheck (verify: probe the host root to
-call dead-vs-gated), --relative (links: also list relative targets), --fix (lint: sync url-as-text to
-the href). NOTE: prove/flag/check/sweep need the post to live in a git repo; links/verify/lint do not.
-The agent decides WHAT to cite + finds the source; this builds + checks. See SKILL.md.
+Flags: --json (links/verify/lint/check) , --crosscheck (verify) , --relative (links) , --fix (lint).
+Note: prove/flag/check/sweep need the file in a git repo; links/verify/lint do not.
 EOF
   exit "${1:-2}"
 }
