@@ -7,7 +7,8 @@
 #     to pin to an UNPUSHED sha (which would 404). a wrong/dead code cite can't reach the diff.
 #   - verify a url resolves (HTTP 200).
 #   - preflight a repo (slug, HEAD, pushed?, dirty?) so the agent knows the state before it cites.
-# there is no "insert" or "find" here on purpose , that's the agent's job, guided by SKILL.md.
+# the agent decides WHAT to cite (judgment); the helper does the mechanics, incl. a SAFE insert
+# (verify + exactly-one literal match + wrap) so a missed/ambiguous add can't pass silently. See SKILL.md.
 # mirrors hush's shape: a contract + one focused script.
 
 set +x 2>/dev/null || true
