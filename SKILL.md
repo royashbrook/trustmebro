@@ -1,6 +1,6 @@
 ---
 name: cite
-version: 3.15.0
+version: 3.15.1
 description: Make a markdown post easier to READ and TRUST by inserting verified links, for the reader, not as proof. Three kinds, value-ranked: EXPLAIN a term a non-specialist reader would not know (link an authoritative explainer, e.g. "ast", "raft"); SUBSTANTIATE a claim about an external thing (link that thing's real page); or, rarely, SHOW code when seeing it illuminates a claim (a sha-pinned permalink). Every link must (a) resolve publicly AND (b) actually mean or back the thing in context; a live-but-wrong link is the worst output. cite is link-hygiene plus targeted explanation, NOT a fact-check of the whole document. Triggers: "cite this post", "add citations", "explain the jargon", "back up the claims", "make this post easier to follow". Auto-inserts; review the diff.
 ---
 
@@ -13,6 +13,8 @@ The agent makes every judgment call. A small helper, `cite`, does the error-pron
 ## Setup
 
 The helper is the `cite` script next to this file. Put it on PATH (`ln -s "$PWD/cite" ~/.local/bin/cite`) or call it by its path. Dependencies: `bash`, `git`, `curl`, `perl` (and `gh`, optional, only for repo-visibility checks in code mode). Run `cite help` for the command list.
+
+Two roots, don't conflate them: cite operates on **the post's** git repo (where `prove`/`flag`/`check` compare and write `.cite-flags.md`), which is separate from wherever you cloned the cite helper itself.
 
 ## Quickstart
 
