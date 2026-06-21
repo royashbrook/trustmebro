@@ -15,7 +15,7 @@ set +x 2>/dev/null || true
 unset BASH_XTRACEFD 2>/dev/null || true
 set -uo pipefail
 
-VERSION=3.20.0
+VERSION=3.20.1
 
 die() {
   [ "${CITE_JSON:-0}" = 1 ] && printf '{"error":"%s","ok":false}\n' "$(_jesc "$1")"
@@ -479,8 +479,11 @@ cmd="${1:-}"; shift || true
 # wrong-arch perl exists but no-ops, which reopens the same fail-open. also validate CITE_JOBS HERE (before
 # check/sweep can swallow a verify error), so a typo like CITE_JOBS=auto dies loud instead of silently
 # disabling link verification.
+# __vone is exempt: it's the internal per-url worker the batch re-invokes via xargs, and the parent's
+# dispatch already ran this gate once , re-checking here would spawn a perl -e1 PER url (the per-url-spawn
+# anti-pattern v3.19 removed).
 case "$cmd" in
-  version|--version|-V|""|-h|--help|help) : ;;
+  version|--version|-V|""|-h|--help|help|__vone) : ;;
   *) perl -e1 >/dev/null 2>&1 || die "cite needs a working perl (deps: bash, git, curl, perl). on Windows, run in WSL or git-bash with perl installed; native PowerShell/cmd is unsupported."
      case "${CITE_JOBS:-16}" in ''|*[!0-9]*) die "CITE_JOBS must be a positive integer (got '${CITE_JOBS}')";; esac
      [ "${CITE_JOBS:-16}" -ge 1 ] 2>/dev/null || die "CITE_JOBS must be >= 1 (got '${CITE_JOBS}')" ;;
