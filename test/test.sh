@@ -256,17 +256,18 @@ printf 'fix it:\n\n~~~markdown\n[http://old.example/x](https://new.example/y)\n~
 diff -q "$tf" "$tf.bak" >/dev/null 2>&1 && ok "lint --fix protects ~~~ tilde fences" || bad "lint --fix corrupted a tilde-fenced code example"
 rm -f "$tf" "$tf.bak"
 
-# 23. cite insert: exactly-one literal match (errors on 0 or >1) , the add safety net
+# 23. cite insert: error only on 0 matches (missed add); wrap the FIRST occurrence; note on multiples
 ins="$fix/ins.md"
 printf 'a unique raft phrase and a token bucket and another token bucket.\n' > "$ins"
 out="$("$CITE" insert "$ins" "no such phrase" https://example.com 2>&1)"; rc=$?
 { [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q 'not found'; } && ok "insert errors on 0 matches (missed add)" || bad "insert should error on a missing phrase"
-out="$("$CITE" insert "$ins" "token bucket" https://example.com 2>&1)"; rc=$?
-{ [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q 'appears 2 times'; } && ok "insert errors on >1 matches (ambiguous)" || bad "insert should error on an ambiguous phrase"
 if curl -fsS -o /dev/null --max-time 8 https://example.com 2>/dev/null; then
   "$CITE" insert "$ins" "raft phrase" https://example.com >/dev/null 2>&1
-  grep -qF '[raft phrase](https://example.com)' "$ins" && ok "insert wraps an exactly-one match" || bad "insert should wrap a unique phrase"
-else ok "insert wrap (skipped, offline)"; fi
+  grep -qF '[raft phrase](https://example.com)' "$ins" && ok "insert wraps a unique match" || bad "insert should wrap a unique phrase"
+  out2="$("$CITE" insert "$ins" "token bucket" https://example.com 2>&1)"; rc2=$?
+  { [ "$rc2" -eq 0 ] && printf '%s' "$out2" | grep -q 'appears 2 times'; } && ok "insert >1 links first + notes (no error)" || bad "insert >1 should link first + note"
+  [ "$(grep -coF '[token bucket](https://example.com)' "$ins")" = "1" ] && ok "insert wraps only the FIRST of several" || bad "insert should wrap only the first occurrence"
+else ok "insert wrap/multi (skipped, offline)"; fi
 rm -f "$ins"
 
 echo "# done. failures: $fails"

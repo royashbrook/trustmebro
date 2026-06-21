@@ -15,7 +15,7 @@ set +x 2>/dev/null || true
 unset BASH_XTRACEFD 2>/dev/null || true
 set -uo pipefail
 
-VERSION=3.17.0
+VERSION=3.17.1
 
 die() {
   [ "${CITE_JSON:-0}" = 1 ] && printf '{"error":"%s","ok":false}\n' "$(_jesc "$1")"
@@ -38,8 +38,9 @@ cite , verified citation links for an agent.
         print every markdown-link url in <file>, one per line (paren-safe). pipe to verify:
         cite links post.md | cite verify -
   cite insert <file> <phrase> <url>
-        safely add one citation: verify <url>, require <phrase> to occur EXACTLY ONCE, wrap it in the
-        doc's format (md or html). errors on 0 or >1 matches so a missed/ambiguous add can't pass silently.
+        safely add one citation: verify <url>, then wrap the FIRST occurrence of <phrase> in the doc's
+        format (md or html). errors only on 0 matches (a missed add); notes if <phrase> occurs several
+        times (it links the first , cite has no every-occurrence mode on purpose).
   cite prove <file> [ref]
         prove cite only touched LINK MARKUP: strip links to visible text in <file> and in <ref>
         (default HEAD) and assert they match. nonzero + a diff if any prose/text/whitespace changed.
@@ -324,14 +325,18 @@ cmd_insert() {
   [ -f "$f" ] || die "insert: no file '$f'"
   local n; n="$(CITE_PHRASE="$phrase" perl -0777 -ne 'my $p=quotemeta($ENV{CITE_PHRASE}); my $c=()=/$p/g; print $c+0' "$f" 2>/dev/null)"
   [ "${n:-0}" -ge 1 ] 2>/dev/null || die "insert: phrase not found in $f , nothing inserted (check the exact text / spacing)"
-  [ "$n" -eq 1 ] 2>/dev/null || die "insert: phrase appears $n times in $f , use a longer unique phrase"
   local code; code="$(_probe "$url")"; code="${code%%|*}"
   [ "$code" = "200" ] || die "insert: $url -> HTTP ${code:-000} ($(_codehint "${code:-000}")) , not inserting an unverified link"
+  # wraps the FIRST occurrence only (cite links a term once, at its first mention). cite does NOT have an
+  # every-occurrence mode on purpose , linking every mention is per-sentence spam; instruct the agent if
+  # you truly want that. the only hard error is 0 matches (a missed add), caught above.
   case "$f" in
     *.html|*.htm) CITE_PHRASE="$phrase" CITE_URL="$url" perl -0777 -i -pe 's/\Q$ENV{CITE_PHRASE}\E/"<a href=\"".$ENV{CITE_URL}."\">".$ENV{CITE_PHRASE}."<\/a>"/e' "$f" ;;
     *)            CITE_PHRASE="$phrase" CITE_URL="$url" perl -0777 -i -pe 's/\Q$ENV{CITE_PHRASE}\E/"[".$ENV{CITE_PHRASE}."](".$ENV{CITE_URL}.")"/e' "$f" ;;
   esac
   printf 'insert: wrapped "%s" -> %s in %s\n' "$phrase" "$url" "$f"
+  [ "$n" -gt 1 ] 2>/dev/null && printf 'insert: note , "%s" appears %s times; linked the FIRST. pass a longer unique phrase to target a specific one.\n' "$phrase" "$n" >&2
+  return 0
 }
 
 cmd_flag() {
