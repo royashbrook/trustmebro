@@ -324,3 +324,16 @@ the env falsely killed links/prove/lint/insert/flag/permalink (none use parallel
 CITE_JOBS check to verify/check/sweep only (still at dispatch, so check/sweep can't swallow it).
 defenses that HELD (verified, not re-investigated): insert fails closed under broken perl; lint --fix fails
 closed; huge CITE_JOBS dies; $0 with a space is xargs-robust. +2 tests (broken-perl-caught, CITE_JOBS-scoped).
+
+## v3.20.2 -> v3.20.3: convergence round , perl + CITE_JOBS confirmed CLEAN; fresh eyes found the flag parser
+
+the tight convergence round confirmed the two prior fixes hold: the perl work-mode round-trip gate is clean
+(no false-die on odd-but-working perls, no slip on realistically-broken ones), and CITE_JOBS scoping is
+clean (consuming set is actually {verify,check}; gated {verify,check,sweep} is a safe superset, sweep
+over-gates but fails LOUD not open). but fresh eyes found one REAL pre-existing bug (predates the v3.20.x
+work): the global flag parser is greedy + position-independent with no end-of-options escape, so a
+phrase/reason that exactly equals a flag token (--json/--fix/--crosscheck/--relative) is silently swallowed
+AND flips the mode , e.g. `cite insert post.md --fix <url>` citing a literal CLI flag name. silent data
+loss. FIX: honor `--` as end-of-options (everything after is verbatim): `cite insert post.md -- --fix <url>`.
+documented in usage + SKILL. 78 tests green. CONVERGENCE READ: the core (cold-e2e + wide-correctness) has
+been clean for multiple rounds; findings are now narrow pre-existing edges surfaced by fresh eyes.

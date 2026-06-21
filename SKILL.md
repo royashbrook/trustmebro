@@ -1,6 +1,6 @@
 ---
 name: cite
-version: 3.20.2
+version: 3.20.3
 description: Insert verified links into a markdown post to make it easier to READ and TRUST, for the reader, not as proof. Three kinds: EXPLAIN a term a non-specialist would not know, SUBSTANTIATE a claim about an external thing, or (rarely) SHOW code via a sha-pinned permalink. Every link must resolve AND actually mean the thing in context (a live-but-wrong link is the worst output). NOT a fact-check of the document. Triggers: "cite this post", "add citations", "explain the jargon", "back up the claims", "make this post easier to follow". Auto-inserts; review the diff.
 ---
 
@@ -74,4 +74,4 @@ cite preflight / permalink          (code mode) repo state / sha-pinned permalin
 cite version
 ```
 
-Add `--json` for structured output (links / verify / lint / check). Not caught (only matters for the optional audit; eyeball foreign docs): deeply-nested-paren urls, multi-line html anchors, html-entity hrefs.
+Add `--json` for structured output (links / verify / lint / check). To cite or flag a phrase that IS a flag token, end options with `--`: `cite insert post.md -- --fix <url>`. Not caught (only matters for the optional audit; eyeball foreign docs): deeply-nested-paren urls, multi-line html anchors, html-entity hrefs.

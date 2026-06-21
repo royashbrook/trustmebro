@@ -15,7 +15,7 @@ set +x 2>/dev/null || true
 unset BASH_XTRACEFD 2>/dev/null || true
 set -uo pipefail
 
-VERSION=3.20.2
+VERSION=3.20.3
 
 die() {
   [ "${CITE_JSON:-0}" = 1 ] && printf '{"error":"%s","ok":false}\n' "$(_jesc "$1")"
@@ -39,6 +39,7 @@ cite , verified citation links for an agent. The agent decides WHAT to cite; thi
   cite version
 
 Flags: --json (links/verify/lint/check) , --crosscheck (verify) , --relative (links) , --fix (lint).
+Use -- to end flags when a phrase/reason IS a flag token: cite insert post.md -- --fix <url>.
 Note: prove/flag/check/sweep need the file in a git repo; links/verify/lint do not.
 EOF
   exit "${1:-2}"
@@ -459,10 +460,15 @@ cmd_preflight() {
 
 # global flags (inherited from env when re-invoked by xargs, else off): --json structured output,
 # --crosscheck dead-vs-gated root probe, --fix auto-repair (lint), --relative include relative links.
+# the scan is position-independent (so `cite links f --json` works), so a `--` end-of-options escape is
+# required: everything after a literal `--` is taken verbatim, so you can cite/flag a phrase that IS a flag
+# token (e.g. `cite insert post.md -- --fix <url>`) without it being swallowed or flipping a mode.
 CITE_JSON="${CITE_JSON:-0}"; CITE_XCHECK="${CITE_XCHECK:-0}"; CITE_FIX="${CITE_FIX:-0}"; CITE_REL="${CITE_REL:-0}"
-_a=()
+_a=(); _endopts=0
 for _x in "$@"; do
+  if [ "$_endopts" = 1 ]; then _a+=("$_x"); continue; fi
   case "$_x" in
+    --)           _endopts=1 ;;
     --json)       CITE_JSON=1 ;;
     --crosscheck) CITE_XCHECK=1 ;;
     --fix)        CITE_FIX=1 ;;

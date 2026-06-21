@@ -317,5 +317,12 @@ printf '%s' "$out" | grep -q 'CITE_JOBS' && bad "CITE_JOBS falsely gates prove" 
 out="$(printf 'https://x\n' | CITE_JOBS=auto "$CITE" verify - 2>&1)"; rc=$?
 { [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q 'CITE_JOBS'; } && ok "CITE_JOBS still gates verify" || bad "CITE_JOBS should gate verify (out='$out' rc=$rc)"
 
+# `--` ends option parsing: a reason/phrase that IS a flag token must be taken literally, not swallowed.
+rm -f "$fix/.cite-flags.md"
+"$CITE" flag "$fix/src.txt" -- --json --fix >/dev/null 2>&1
+grep -q -- '--json --fix' "$fix/.cite-flags.md" 2>/dev/null && ok "-- escapes flag tokens (literal reason recorded)" || bad "-- should record '--json --fix' as a literal reason"
+# without --, the greedy scan strips them (documented behavior, the reason this escape exists)
+rm -f "$fix/.cite-flags.md"
+
 echo "# done. failures: $fails"
 [ "$fails" -eq 0 ]
