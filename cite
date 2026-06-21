@@ -14,7 +14,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
-const VERSION = '4.0.1';
+const VERSION = '4.0.2';
 
 // ---- global flags (set by the arg parser below) ----
 let JSON_OUT = process.env.CITE_JSON === '1';
@@ -250,7 +250,7 @@ function cmdProve(args) {
     const a = path.join(require('node:os').tmpdir(), 'cite-o-' + process.pid);
     const b = path.join(require('node:os').tmpdir(), 'cite-n-' + process.pid);
     fs.writeFileSync(a, olds + '\n'); fs.writeFileSync(b, news + '\n');
-    try { execFileSync('diff', [a, b], { stdio: ['ignore', 'inherit', 'inherit'] }); } catch {}
+    try { execFileSync('diff', [a, b], { stdio: ['ignore', 2, 2] }); } catch {}   // diff body -> stderr (stdout stays clean)
     fs.rmSync(a, { force: true }); fs.rmSync(b, { force: true });
   } catch {}
   process.exit(1);
@@ -367,7 +367,7 @@ async function cmdSweep(args) {
   for (const rel of files) {
     n++;
     const abs = path.join(r, rel);
-    if (!fs.existsSync(abs)) continue;   // deleted in the working tree , nothing to gate (bash isolated this in a subshell)
+    if (!fs.existsSync(abs)) { process.stdout.write(`DELETED        ${rel}  (skipped , not a prose/half-fix offender)\n`); continue; }   // visible, but not counted as an offender (perl-final mislabeled deletions as both)
     if (gitOk(['-C', r, 'cat-file', '-e', `${base}:${rel}`])) {
       try { if (!quietProve(abs, base)) { process.stdout.write(`PROSE-CHANGED  ${rel}\n`); pf++; } } catch {}
     }
@@ -446,6 +446,7 @@ function cmdPermalink(args) {
     if (args[i].startsWith('--ref=')) { ref = args[i].slice(6); i++; continue; }
     pos.push(args[i]); i++;
   }
+  if (pos.length > 4) die('permalink: too many arguments');
   const [dir, p, start, end] = pos;
   if (!dir || !p || !start) usage();
   if (!/^[0-9]+$/.test(start)) die('permalink: start line must be a number');
@@ -470,9 +471,9 @@ function cmdPermalink(args) {
   }
   if (!gitOk(['-C', dir, 'cat-file', '-e', `${sha}:${p}`])) die(`no '${p}' at ${sha}`);
   const content = gitOut(['-C', dir, 'show', `${sha}:${p}`]);
-  const n = content == null ? 0 : content.split('\n').length - (content.endsWith('\n') ? 1 : 0);
+  const n = (content == null || content === '') ? 0 : content.split('\n').length - (content.endsWith('\n') ? 1 : 0);
   const last = parseInt(end || start, 10);
-  if (!(last <= n)) die(`line ${last} out of range (${p} has ${n} lines at ${sha})`);
+  if (n === 0 || !(last <= n)) die(`line ${last} out of range (${p} has ${n} lines at ${sha})`);
   if (end && end !== start) process.stdout.write(`https://github.com/${slug}/blob/${sha}/${p}#L${start}-L${end}\n`);
   else process.stdout.write(`https://github.com/${slug}/blob/${sha}/${p}#L${start}\n`);
   return 0;

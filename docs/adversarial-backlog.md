@@ -352,3 +352,26 @@ subcommand (exit 1 + message, no silent success). two real findings, both bare-u
   link as PASS. fix: allow '(' / '[' as a leading delimiter in the bare-url scan.
 82 tests green (+prove-fails-bare-url, +prove-fails-autolink, +links-paren-wrapped). CONVERGENCE: core clean,
 findings now narrow edge-forms; this was the agreed last round.
+
+## v4.0.1 -> v4.0.2: JS tester sweep , fixed real port bugs; kept the JS-is-better divergences
+
+first tester sweep on the node port (differential-vs-perl-final + gate/network/fresh-eyes). FIXED real
+JS port bugs: prove's diff body went to stdout (now stderr, stdout stays clean); permalink thought an empty
+file had 1 line (now 0 -> out-of-range dies like perl); permalink ignored extra trailing args (now rejects);
+sweep silently skipped a deleted file (now prints a visible DELETED note, still not counted as an offender).
+KEPT (the JS is MORE correct than perl-final, documented as intentional, not regressions):
+- url boundaries: JS \s is unicode-aware, so a url ending at a non-breaking/unicode space tokenizes
+  correctly; perl-final's ASCII \s swallowed the next word (a perl fail-open the port closes).
+- lint/check offender text containing a literal tab: JS builds {text,href} structurally and is correct;
+  perl-final's split-on-first-tab mis-attributed it.
+- check failed_urls / dead-list ordering: JS is document-order deterministic; perl was network-completion
+  (nondeterministic) order.
+KNOWN LIMITATIONS (pre-existing , present in perl-final too, NOT port regressions; documented in SKILL):
+- 4-space indented code blocks are not recognized as code (CITE_CR covers fenced/inline/html-comment only),
+  so prove can no-op / insert can wrap / lint --fix can rewrite inside them. recommend fenced code. fixing
+  well needs CommonMark indented-code detection (blank-line-preceded, not-in-list) , fiddly + a naive
+  pattern would mask real prose-in-lists (a worse fail-open), so deferred, not papered over.
+- reference-style ([text][ref]) link bodies aren't in insert/lint's protected set (inline + html only).
+- node fetch (undici) caps redirects at 20; curl's default is 50. a url needing 21+ hops reads dead in JS
+  (pathological; both cap somewhere).
+fresh-eyes pass on the JS source: CLEAN (no global-regex/lastIndex, split-capture, or async-swallow bugs).

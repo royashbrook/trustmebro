@@ -1,6 +1,6 @@
 ---
 name: cite
-version: 4.0.1
+version: 4.0.2
 description: Insert verified links into a markdown post to make it easier to READ and TRUST, for the reader, not as proof. Three kinds: EXPLAIN a term a non-specialist would not know, SUBSTANTIATE a claim about an external thing, or (rarely) SHOW code via a sha-pinned permalink. Every link must resolve AND actually mean the thing in context (a live-but-wrong link is the worst output). NOT a fact-check of the document. Triggers: "cite this post", "add citations", "explain the jargon", "back up the claims", "make this post easier to follow". Auto-inserts; review the diff.
 ---
 
@@ -74,4 +74,6 @@ cite preflight / permalink          (code mode) repo state / sha-pinned permalin
 cite version
 ```
 
-Add `--json` for structured output (links / verify / lint / check). To cite or flag a phrase that IS a flag token, end options with `--`: `cite insert post.md -- --fix <url>`. Not caught (only matters for the optional audit; eyeball foreign docs): deeply-nested-paren urls, multi-line html anchors, html-entity hrefs.
+Add `--json` for structured output (links / verify / lint / check). To cite or flag a phrase that IS a flag token, end options with `--`: `cite insert post.md -- --fix <url>`.
+
+**Code regions** cite skips = fenced ` ``` `/`~~~` blocks, inline `` `code` ``, and html comments , NOT Markdown's 4-space-indented code blocks. Put code you don't want cite to read/touch in a fenced block. Other parser limits (optional-audit only; eyeball foreign docs): deeply-nested-paren urls, multi-line html anchors, html-entity hrefs, reference-style (`[text][ref]`) link bodies (insert/lint protect inline + html links, not ref-style).
