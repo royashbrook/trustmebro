@@ -14,7 +14,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
-const VERSION = '4.0.0';
+const VERSION = '4.0.1';
 
 // ---- global flags (set by the arg parser below) ----
 let JSON_OUT = process.env.CITE_JSON === '1';
@@ -160,8 +160,9 @@ async function cmdVerify(args) {
     for (const r of results) process.stdout.write(emitVerify(r) + '\n');
     return results.some(r => !r.ok) ? 1 : 0;
   }
-  process.stdout.write(emitVerify(await verifyOne(url)) + '\n');
-  return (await verifyOne(url)).ok ? 0 : 1; // (kept simple; single-url path)
+  const r = await verifyOne(url);          // single-url path , one probe, used for both output and exit
+  process.stdout.write(emitVerify(r) + '\n');
+  return r.ok ? 0 : 1;
 }
 
 // ---- link extraction ----
