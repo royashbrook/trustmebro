@@ -15,7 +15,7 @@ set +x 2>/dev/null || true
 unset BASH_XTRACEFD 2>/dev/null || true
 set -uo pipefail
 
-VERSION=3.20.3
+VERSION=3.20.4
 
 die() {
   [ "${CITE_JSON:-0}" = 1 ] && printf '{"error":"%s","ok":false}\n' "$(_jesc "$1")"
@@ -198,7 +198,7 @@ cmd_links() {
     while(/href\s*=\s*(["\x27]?)(https?:\/\/[^"\x27\s>]+)\1/gi){print "$2\n"}
     while(/^[ ]{0,3}\[[^\]]+\]:\s+(\S+)/mg){ my $u=$1; $u=~s/^<//; $u=~s/>$//; print "$u\n" if $u=~m{^https?://} }
     while(/<(https?:\/\/[^>\s]+)>/g){print "$1\n"}
-    while(/(?:^|\s)(https?:\/\/[^\s<>()\[\]"\x27]+)/mg){ my $u=$1; $u=~s/[.,;:!?]+$//; print "$u\n" }
+    while(/(?:^|[\s(\[])(https?:\/\/[^\s<>()\[\]"\x27]+)/mg){ my $u=$1; $u=~s/[.,;:!?]+$//; print "$u\n" }
   ' | awk '!seen[$0]++')"
   # relative targets (not http) , inline + reference-definition. break outside the repo; absolutize the
   # load-bearing ones. surfaced on --relative or --json.
@@ -218,19 +218,22 @@ cmd_links() {
   return 0
 }
 
-# reduce a doc to its PROSE for comparison: strip markdown links/images and html anchors to their
-# visible text, then tokenize any remaining url to <URL>. so fixing a dead link , including one whose
-# visible text is itself a url (the heroku half-fix) , reads as a no-op, while a real prose word change
-# (dumb->super-simple), a link-TEXT edit (mat->rug), or line-ending churn still shows up.
+# reduce a doc to its READER-VISIBLE prose for comparison: strip markdown links/images and html anchors
+# to their visible text. a url that IS a link's visible text becomes <URL> (so the heroku half-fix , href
+# AND the displayed-url both repointed , reads as a no-op), and a reference-definition target is masked
+# (it's markup, not rendered). but a BARE url or an angle-bracket autolink is LEFT INTACT, because the url
+# is exactly what the reader sees there , so repointing it correctly FAILS prove (it's a prose edit). a
+# real word change, a link-TEXT edit (mat->rug), or line-ending churn still shows up.
 _strip() {
   perl -0777 -pe '
     my $cr=$ENV{CITE_CR};
     my @p = split /($cr)/s, $_;            # odd indices = code regions, left VERBATIM
     for my $i (0..$#p) {
-      next if $i % 2;                       # so a link injected INTO code shows as a diff (prove fails),
-      $p[$i] =~ s/!?\[([^\]]*)\]\((?:[^()\s]|\([^()\s]*\))*\)/$1/g;   # not a markup-only no-op.
-      $p[$i] =~ s/<a\b[^>]*?>(.*?)<\/a>/$1/gis;
-      $p[$i] =~ s/https?:\/\/[^\s<>"]+/<URL>/g;
+      next if $i % 2;                       # so a link injected INTO code shows as a diff (prove fails).
+      # inline links/images + html anchors -> visible text; a url that was the VISIBLE TEXT -> <URL>.
+      $p[$i] =~ s/!?\[([^\]]*)\]\((?:[^()\s]|\([^()\s]*\))*\)/ my $t=$1; $t=~s{https?:\/\/[^\s<>"]+}{<URL>}g; $t /ge;
+      $p[$i] =~ s/<a\b[^>]*?>(.*?)<\/a>/ my $t=$1; $t=~s{https?:\/\/[^\s<>"]+}{<URL>}g; $t /gise;
+      $p[$i] =~ s/^([ ]{0,3}\[[^\]]+\]:[ \t]+)\S+/$1<URL>/mg;        # ref-def target: markup, not prose.
     }
     $_ = join "", @p;
   ' 2>/dev/null

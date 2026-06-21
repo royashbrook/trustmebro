@@ -114,6 +114,22 @@ git -C "$fix" add post.md; git -C "$fix" commit -qm post3
 perl -i -pe 's#https://old.example/x#https://new.example/y#g' "$pf"
 "$CITE" prove "$pf" >/dev/null 2>&1 && ok "prove passes on url-as-text fix (href+text)" || bad "prove should pass when only urls changed"
 git -C "$fix" checkout -q post.md
+# (g) a BARE url is reader-visible text: repointing it is a prose change -> FAILS (not tokenized away)
+printf 'download the installer from https://old.example/x and run it.\n' > "$pf"
+git -C "$fix" add post.md; git -C "$fix" commit -qm postbare
+perl -i -pe 's#https://old.example/x#https://new.example/y#' "$pf"
+"$CITE" prove "$pf" >/dev/null 2>&1 && bad "prove should FAIL on a bare-url change (reader-visible)" || ok "prove fails on a bare-url text change"
+git -C "$fix" checkout -q post.md
+# (h) an angle-bracket autolink is reader-visible too -> FAILS
+printf 'see <https://old.example/x> for details.\n' > "$pf"
+git -C "$fix" add post.md; git -C "$fix" commit -qm postauto
+perl -i -pe 's#https://old.example/x#https://new.example/y#' "$pf"
+"$CITE" prove "$pf" >/dev/null 2>&1 && bad "prove should FAIL on an autolink change" || ok "prove fails on an autolink change"
+git -C "$fix" checkout -q post.md
+# links: a bare url wrapped in parens is still extracted (so check can't certify a paren-wrapped dead link)
+pb="$fix/parenurl.md"; printf 'details in the post (https://example.com/p) here.\n' > "$pb"
+"$CITE" links "$pb" | grep -qx 'https://example.com/p' && ok "links: paren-wrapped bare url extracted" || bad "links: paren-wrapped bare url missed"
+rm -f "$pb"
 
 # 13. lint: the half-fix (visible text is a url that differs from href)
 lf="$fix/lint.md"

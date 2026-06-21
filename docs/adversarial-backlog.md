@@ -337,3 +337,18 @@ AND flips the mode , e.g. `cite insert post.md --fix <url>` citing a literal CLI
 loss. FIX: honor `--` as end-of-options (everything after is verbatim): `cite insert post.md -- --fix <url>`.
 documented in usage + SKILL. 78 tests green. CONVERGENCE READ: the core (cold-e2e + wide-correctness) has
 been clean for multiple rounds; findings are now narrow pre-existing edges surfaced by fresh eyes.
+
+## v3.20.3 -> v3.20.4: final round , perl confirmed load-bearing; closed a prove fail-open + a links gap
+
+the final round answered the perl question with evidence: perl is genuinely load-bearing (every call needs
+slurp/multi-line/non-greedy/split-with-capture awk/sed can't do; the lone line-wise call shares escaping
+with the json builders so splitting it would fork the logic), and a perl-less box fails LOUD on every real
+subcommand (exit 1 + message, no silent success). two real findings, both bare-url handling, both closed:
+- WORKING-PERL FAIL-OPEN in prove/check/sweep: _strip tokenized EVERY url to <URL>, so repointing a BARE
+  url or an angle-bracket AUTOLINK (where the url IS the reader-visible text) passed as 'prose intact'. fix:
+  tokenize a url ONLY when it's a LINK's visible text (preserves the heroku half-fix no-op) and mask ref-def
+  targets, but leave bare urls + autolinks intact so changing them correctly FAILS prove.
+- links missed a bare url preceded by '(' (e.g. '(https://x)'), so check could certify a paren-wrapped dead
+  link as PASS. fix: allow '(' / '[' as a leading delimiter in the bare-url scan.
+82 tests green (+prove-fails-bare-url, +prove-fails-autolink, +links-paren-wrapped). CONVERGENCE: core clean,
+findings now narrow edge-forms; this was the agreed last round.
