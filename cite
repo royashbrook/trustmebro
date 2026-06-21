@@ -15,7 +15,7 @@ set +x 2>/dev/null || true
 unset BASH_XTRACEFD 2>/dev/null || true
 set -uo pipefail
 
-VERSION=3.19.0
+VERSION=3.20.0
 
 die() {
   [ "${CITE_JSON:-0}" = 1 ] && printf '{"error":"%s","ok":false}\n' "$(_jesc "$1")"
@@ -103,8 +103,10 @@ _host_root() { printf '%s' "$1" | sed -E 's#^(https?://[^/]+).*#\1/#'; }
 # escape a string for embedding in a JSON double-quoted value.
 _jesc() { printf '%s' "${1:-}" | perl -pe 's/([\\"])/\\$1/g; s/\n/\\n/g; s/\r/\\r/g; s/\t/\\t/g; s/([\x00-\x1f])/sprintf("\\u%04x",ord($1))/ge' 2>/dev/null; }
 # build a JSON array from stdin in ONE perl pass (not one _jesc spawn per item , the 200x bottleneck).
-_json_arr()  { perl -0777 -ne 'my @x; for my $v (split /\n/,$_){ next if $v=~/^\s*$/; $v=~s/([\\"])/\\$1/g; $v=~s/([\x00-\x1f])/sprintf("\\u%04x",ord($1))/ge; push @x,"\"$v\"" } print "[".join(",",@x)."]"' 2>/dev/null; }
-_json_objs() { perl -0777 -ne 'my @x; for my $l (split /\n/,$_){ next unless $l=~/\t/; my($t,$h)=split /\t/,$l,2; for my $v ($t,$h){ $v=~s/([\\"])/\\$1/g; $v=~s/([\x00-\x1f])/sprintf("\\u%04x",ord($1))/ge } push @x,"{\"text\":\"$t\",\"href\":\"$h\"}" } print "[".join(",",@x)."]"' 2>/dev/null; }
+# NOTE: escape order mirrors _jesc EXACTLY (\r,\t short-forms before the generic \u rule) so single-pass
+# output is byte-identical to the old per-item _jesc, not just decode-equal. (\n can't survive split /\n/.)
+_json_arr()  { perl -0777 -ne 'my @x; for my $v (split /\n/,$_){ next if $v=~/^\s*$/; $v=~s/([\\"])/\\$1/g; $v=~s/\r/\\r/g; $v=~s/\t/\\t/g; $v=~s/([\x00-\x1f])/sprintf("\\u%04x",ord($1))/ge; push @x,"\"$v\"" } print "[".join(",",@x)."]"' 2>/dev/null; }
+_json_objs() { perl -0777 -ne 'my @x; for my $l (split /\n/,$_){ next unless $l=~/\t/; my($t,$h)=split /\t/,$l,2; for my $v ($t,$h){ $v=~s/([\\"])/\\$1/g; $v=~s/\r/\\r/g; $v=~s/([\x00-\x1f])/sprintf("\\u%04x",ord($1))/ge } push @x,"{\"text\":\"$t\",\"href\":\"$h\"}" } print "[".join(",",@x)."]"' 2>/dev/null; }
 # turn a non-200 code into a dead-vs-gated hint, so the agent doesn't have to hand-roll the diagnosis.
 _codehint() {
   case "$1" in
@@ -147,14 +149,21 @@ cmd_verify() {
   if [ "$url" = "-" ]; then
     # batch: read urls on stdin, verify in PARALLEL (output unordered, each line complete), nonzero if any fail.
     export CITE_JSON CITE_XCHECK
-    local results pflag jobs="${CITE_JOBS:-16}"
+    local results pflag jobs="${CITE_JOBS:-16}" items nin
     # -n1 (not -I{}): -I has a 255-byte replstr limit that silently DROPS long urls; -n1 appends the url
-    # as a positional arg with no cap. -P jobs (default 16, tunable via CITE_JOBS) , verify is pure network
-    # wait, so width is the only lever and 16 ~halves wall time vs 8 before host saturation. busybox xargs
-    # has no -P; fall back to sequential so batch still WORKS (just slower) instead of erroring.
-    if printf '' | xargs -P 2 true >/dev/null 2>&1; then pflag="-P $jobs"; else pflag=""; fi
-    results="$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -v '^[[:space:]]*$' | awk '!seen[$0]++' | xargs $pflag -n1 "$0" __vone 2>/dev/null)"
-    [ -n "$results" ] && printf '%s\n' "$results"
+    # as a positional arg with no cap. -P jobs (default 16, tunable via CITE_JOBS, validated at dispatch) ,
+    # verify is pure network wait, so width is the only lever and 16 ~halves wall time vs 8. busybox xargs
+    # has no -P; probe with the REAL jobs value (not a hardcoded 2) and fall back to sequential if -P is
+    # unsupported, so batch still WORKS (just slower) instead of erroring.
+    items="$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -v '^[[:space:]]*$' | awk '!seen[$0]++')"
+    nin="$(printf '%s' "$items" | grep -c .)"
+    [ "$nin" -eq 0 ] && return 0
+    if printf '' | xargs -P "$jobs" true >/dev/null 2>&1; then pflag="-P $jobs"; else pflag=""; fi
+    results="$(printf '%s\n' "$items" | xargs $pflag -n1 "$0" __vone 2>/dev/null)"
+    # a non-empty input that produced NO output means the fan-out itself broke (xargs error, etc.) , that
+    # must read as failure, never as a silent all-clear (the fail-open the CITE_JOBS bug exposed).
+    [ -z "$results" ] && { printf 'cite: verify produced no output for %s url(s) , the parallel fan-out failed (check CITE_JOBS / xargs)\n' "$nin" >&2; return 1; }
+    printf '%s\n' "$results"
     if [ "${CITE_JSON:-0}" = 1 ]; then printf '%s' "$results" | grep -q '"ok":false' && return 1 || return 0
     else printf '%s' "$results" | grep -q '^FAIL' && return 1 || return 0; fi
   fi
@@ -385,6 +394,9 @@ cmd_check() {
   links="$(CITE_JSON=0 CITE_REL=0 cmd_links "$f" 2>/dev/null)"
   nlink="$(printf '%s' "$links" | grep -c .)"
   [ -n "$links" ] && vout="$(printf '%s\n' "$links" | CITE_JSON=0 cmd_verify - 2>/dev/null)"
+  # if there were links but verify emitted nothing, the fan-out broke (cmd_verify swallows stderr here) ,
+  # count every link as a failure rather than let an empty result read as all-clear (a check fail-open).
+  if [ "${nlink:-0}" -gt 0 ] && [ -z "${vout:-}" ]; then nfail="$nlink"; ffail="(verify produced no output , parallel fan-out failed; check CITE_JOBS/xargs)"; fi
   while IFS= read -r u; do
     [ -n "$u" ] || continue
     if [ -n "$root" ] && [ -f "$root/.cite-flags.md" ] && _flagged "$root/.cite-flags.md" "$u"; then flagged=$((flagged + 1))
@@ -463,10 +475,15 @@ set -- ${_a[@]+"${_a[@]}"}
 cmd="${1:-}"; shift || true
 # preflight: perl is the load-bearing engine (extraction, the prove/lint gates, insert). without it every
 # perl call silently no-ops (2>/dev/null), so prove/insert would PASS while doing NOTHING , fail OPEN, the
-# dangerous kind. hard-fail loudly instead, for any real subcommand.
+# dangerous kind. probe that perl actually RUNS (perl -e1), not just that it's on PATH , a broken/stub/
+# wrong-arch perl exists but no-ops, which reopens the same fail-open. also validate CITE_JOBS HERE (before
+# check/sweep can swallow a verify error), so a typo like CITE_JOBS=auto dies loud instead of silently
+# disabling link verification.
 case "$cmd" in
   version|--version|-V|""|-h|--help|help) : ;;
-  *) command -v perl >/dev/null 2>&1 || die "cite needs perl (deps: bash, git, curl, perl). on Windows, run in WSL or git-bash with perl installed; native PowerShell/cmd is unsupported." ;;
+  *) perl -e1 >/dev/null 2>&1 || die "cite needs a working perl (deps: bash, git, curl, perl). on Windows, run in WSL or git-bash with perl installed; native PowerShell/cmd is unsupported."
+     case "${CITE_JOBS:-16}" in ''|*[!0-9]*) die "CITE_JOBS must be a positive integer (got '${CITE_JOBS}')";; esac
+     [ "${CITE_JOBS:-16}" -ge 1 ] 2>/dev/null || die "CITE_JOBS must be >= 1 (got '${CITE_JOBS}')" ;;
 esac
 case "$cmd" in
   permalink) cmd_permalink "$@" ;;

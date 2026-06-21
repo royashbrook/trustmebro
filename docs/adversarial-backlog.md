@@ -291,3 +291,21 @@ but the perf/portability lenses MEASURED real holes, all fixed:
 - replaced prove's diff <(...) process-substitution (a bashism) with a temp-file diff (dash/busybox-safe).
 73 tests green. (also: README still scopes macOS/Linux; native Windows needs WSL/git-bash + perl , now a
 loud preflight, not a silent pass.)
+
+## v3.19 -> v3.20: the v3.19 changes bred 3 findings (2 fail-opens), all closed
+
+a breaker round aimed only at the v3.19 changes. clean on the prove temp-file diff + the check ffail/loff
+refactor. three real findings, two of them fail-opens (the dangerous class):
+- FAIL-OPEN (CITE_JOBS): a bad CITE_JOBS (typo: auto / -5 / garbage) sailed past the hardcoded `-P 2`
+  probe, then real `xargs -P <bad>` errored -> empty output -> swallowed by 2>/dev/null -> verify reported
+  SUCCESS on dead links, flipping check/sweep from ISSUES to PASS. FIX: validate CITE_JOBS (positive int)
+  at DISPATCH (before check/sweep can swallow it); probe with the REAL jobs value not a hardcoded 2; and
+  guard cmd_verify + cmd_check so a non-empty input that yields no output reads as FAILURE, never all-clear.
+- FAIL-OPEN (preflight): the perl gate tested `command -v perl` (presence), so a present-but-broken perl
+  (stub / corrupt / wrong-arch) passed, then every perl call no-opped -> prove/lint PASS on tampered input.
+  FIX: probe `perl -e1` (perl actually RUNS), which catches absent AND broken.
+- divergence: _json_arr/_json_objs emitted 	/ for tab/CR where _jesc emits \t/\r (both valid
+  JSON, same decoded char, but not byte-identical to the contract). FIX: mirror _jesc's escape order exactly.
+documented won't-fix nits confirmed: deeply-nested-paren urls (SKILL line 77, optional-audit only), lint
+--fix drops the human label (by design). process nit: tag releases (no v* tags existed) , done from v3.20.0.
+73 -> 76 tests green.

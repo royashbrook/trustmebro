@@ -288,7 +288,18 @@ if curl -fsS -o /dev/null --max-time 8 https://example.com 2>/dev/null; then
 else ok "double-insert (skipped, offline)"; fi
 rm -f "$cz"
 
-echo "# done. failures: $fails"
+# CITE_JOBS validation: a bad value must die LOUD at dispatch, not silently disable verification (offline,
+# the dispatch guard fires before any network). guards the fail-open where a typo flips check ISSUES->PASS.
+out="$(printf 'https://x\n' | CITE_JOBS=garbage "$CITE" verify - 2>/dev/null)"; rc=$?
+{ [ -z "$out" ] && [ "$rc" -ne 0 ]; } && ok "CITE_JOBS=garbage dies (no silent fail-open)" || bad "CITE_JOBS=garbage should die (out='$out' rc=$rc)"
+out="$(printf 'https://x\n' | CITE_JOBS=-5 "$CITE" verify - 2>/dev/null)"; rc=$?
+{ [ -z "$out" ] && [ "$rc" -ne 0 ]; } && ok "CITE_JOBS=-5 dies" || bad "CITE_JOBS=-5 should die (rc=$rc)"
+
+# json builders escape byte-identically to _jesc: a TAB in a relative target -> \t (short form), not a raw tab.
+jt="$fix/jt.md"; printf 'x [a](p\tq.md) y\n' > "$jt"
+out="$(CITE_JSON=1 "$CITE" links "$jt" 2>/dev/null)"
+case "$out" in *'p\tq.md'*) ok "json escapes tab as backslash-t (byte-identical to _jesc)";; *) bad "json tab-escape got: $out";; esac
+rm -f "$jt"
 
 echo "# done. failures: $fails"
 [ "$fails" -eq 0 ]
