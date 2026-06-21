@@ -1,6 +1,6 @@
 ---
 name: cite
-version: 3.20.4
+version: 4.0.0
 description: Insert verified links into a markdown post to make it easier to READ and TRUST, for the reader, not as proof. Three kinds: EXPLAIN a term a non-specialist would not know, SUBSTANTIATE a claim about an external thing, or (rarely) SHOW code via a sha-pinned permalink. Every link must resolve AND actually mean the thing in context (a live-but-wrong link is the worst output). NOT a fact-check of the document. Triggers: "cite this post", "add citations", "explain the jargon", "back up the claims", "make this post easier to follow". Auto-inserts; review the diff.
 ---
 
@@ -57,7 +57,7 @@ Know or infer the repo, read a `.cite` map if present (`name = owner/repo`), or 
 
 ## Setup
 
-The `cite` script is next to this file. Put it on PATH (`ln -s "$PWD/cite" ~/.local/bin/cite`) or call it by path. Needs `bash`, `git`, `curl`, `perl` (`gh` optional). Two roots: cite operates on **the post's** git repo (where prove / flag / check work). Clone the helper **outside** that repo (or gitignore it), so it does not get committed into the post's tree.
+The `cite` script is next to this file. Put it on PATH (`ln -s "$PWD/cite" ~/.local/bin/cite`) or call it by path. Needs `node` (>=18, for built-in `fetch`) and `git` (`gh` optional). No bash/perl/curl , runs on macOS, Linux, and Windows. Two roots: cite operates on **the post's** git repo (where prove / flag / check work). Clone the helper **outside** that repo (or gitignore it), so it does not get committed into the post's tree.
 
 ## Helper reference
 

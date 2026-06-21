@@ -38,8 +38,8 @@ cite permalink <repo-dir> <path> <start> [end] [--ref origin/<branch>]   # (code
 ```
 
 `permalink` only emits a url if those exact lines exist at a pushed sha , so a wrong code cite can't
-reach your diff. needs `bash`, `git`, `curl`, `perl` (`gh` optional). macOS / Linux. full doctrine +
-the mechanical gates (`prove` / `lint`) are in [`SKILL.md`](SKILL.md).
+reach your diff. needs `node` (>=18) and `git` (`gh` optional) , no bash/perl/curl, so it runs on macOS,
+Linux, and Windows. full doctrine + the mechanical gates (`prove` / `lint`) are in [`SKILL.md`](SKILL.md).
 
 ## not a magic citer
 

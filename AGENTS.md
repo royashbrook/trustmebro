@@ -11,7 +11,7 @@ resolve.
 
 ## install (any agent)
 
-`cite` is a single self-contained bash script (needs `git` + `curl`). get it on the box:
+`cite` is a single self-contained node script (needs `node` >=18 + `git`). get it on the box:
 
 ```sh
 git clone https://github.com/royashbrook/cite
