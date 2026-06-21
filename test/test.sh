@@ -301,5 +301,21 @@ out="$(CITE_JSON=1 "$CITE" links "$jt" 2>/dev/null)"
 case "$out" in *'p\tq.md'*) ok "json escapes tab as backslash-t (byte-identical to _jesc)";; *) bad "json tab-escape got: $out";; esac
 rm -f "$jt"
 
+# broken-perl fail-open guard: a perl that satisfies `perl -e1` but no-ops the real -0777 -pe work mode must
+# be CAUGHT (die loud), not fail open. stub perl first on PATH; the round-trip probe is what closes this.
+bp="$(mktemp -d)"; printf '#!/bin/sh\nfor a in "$@"; do [ "$a" = "-e1" ] && exit 0; done\ncat >/dev/null 2>&1; exit 0\n' > "$bp/perl"; chmod +x "$bp/perl"
+printf 'the original prose\n' > "$fix/bpf.md"; git -C "$fix" add bpf.md; git -C "$fix" commit -qm bpf >/dev/null
+printf 'COMPLETELY different prose\n' > "$fix/bpf.md"
+out="$(PATH="$bp:$PATH" "$CITE" prove "$fix/bpf.md" HEAD 2>&1)"; rc=$?
+{ [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q 'working perl'; } && ok "broken perl caught (no prove fail-open)" || bad "broken-perl prove fail-open (out='$out' rc=$rc)"
+rm -rf "$bp"; rm -f "$fix/bpf.md"; git -C "$fix" rm -q bpf.md >/dev/null 2>&1; git -C "$fix" commit -qm rmbpf >/dev/null 2>&1
+
+# CITE_JOBS is scoped to verify/check/sweep: a stray value must NOT kill non-parallel commands...
+out="$(CITE_JOBS=auto "$CITE" prove "$fix/src.txt" HEAD 2>&1)"
+printf '%s' "$out" | grep -q 'CITE_JOBS' && bad "CITE_JOBS falsely gates prove" || ok "CITE_JOBS does not gate non-parallel commands"
+# ...but it DOES still gate verify.
+out="$(printf 'https://x\n' | CITE_JOBS=auto "$CITE" verify - 2>&1)"; rc=$?
+{ [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q 'CITE_JOBS'; } && ok "CITE_JOBS still gates verify" || bad "CITE_JOBS should gate verify (out='$out' rc=$rc)"
+
 echo "# done. failures: $fails"
 [ "$fails" -eq 0 ]

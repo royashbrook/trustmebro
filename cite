@@ -15,7 +15,7 @@ set +x 2>/dev/null || true
 unset BASH_XTRACEFD 2>/dev/null || true
 set -uo pipefail
 
-VERSION=3.20.1
+VERSION=3.20.2
 
 die() {
   [ "${CITE_JSON:-0}" = 1 ] && printf '{"error":"%s","ok":false}\n' "$(_jesc "$1")"
@@ -475,18 +475,23 @@ set -- ${_a[@]+"${_a[@]}"}
 cmd="${1:-}"; shift || true
 # preflight: perl is the load-bearing engine (extraction, the prove/lint gates, insert). without it every
 # perl call silently no-ops (2>/dev/null), so prove/insert would PASS while doing NOTHING , fail OPEN, the
-# dangerous kind. probe that perl actually RUNS (perl -e1), not just that it's on PATH , a broken/stub/
-# wrong-arch perl exists but no-ops, which reopens the same fail-open. also validate CITE_JOBS HERE (before
-# check/sweep can swallow a verify error), so a typo like CITE_JOBS=auto dies loud instead of silently
-# disabling link verification.
+# dangerous kind. probe perl with the ACTUAL work mode (a -0777 -pe round-trip A->B), not just `perl -e1`:
+# a stub / wrong-arch / corrupt perl can satisfy -e1 yet no-op or error on the real slurp+substitute mode,
+# which reopens the fail-open. the round-trip dies loud unless perl genuinely transforms input.
 # __vone is exempt: it's the internal per-url worker the batch re-invokes via xargs, and the parent's
-# dispatch already ran this gate once , re-checking here would spawn a perl -e1 PER url (the per-url-spawn
+# dispatch already ran this gate once , re-checking would spawn a perl probe PER url (the per-url-spawn
 # anti-pattern v3.19 removed).
 case "$cmd" in
   version|--version|-V|""|-h|--help|help|__vone) : ;;
-  *) perl -e1 >/dev/null 2>&1 || die "cite needs a working perl (deps: bash, git, curl, perl). on Windows, run in WSL or git-bash with perl installed; native PowerShell/cmd is unsupported."
-     case "${CITE_JOBS:-16}" in ''|*[!0-9]*) die "CITE_JOBS must be a positive integer (got '${CITE_JOBS}')";; esac
-     [ "${CITE_JOBS:-16}" -ge 1 ] 2>/dev/null || die "CITE_JOBS must be >= 1 (got '${CITE_JOBS}')" ;;
+  *) [ "$(printf A | perl -0777 -pe 's/A/B/' 2>/dev/null)" = B ] || die "cite needs a working perl (deps: bash, git, curl, perl). on Windows, run in WSL or git-bash with perl installed; native PowerShell/cmd is unsupported." ;;
+esac
+# CITE_JOBS only drives the parallel batch in verify/check/sweep , validate it ONLY for those (a stray
+# CITE_JOBS in the env must not kill links/prove/lint/insert/flag/permalink, which never spawn xargs), but
+# validate at DISPATCH (not inside cmd_verify) so check/sweep can't swallow the error into a silent PASS.
+case "$cmd" in
+  verify|check|sweep)
+    case "${CITE_JOBS:-16}" in ''|*[!0-9]*) die "CITE_JOBS must be a positive integer (got '${CITE_JOBS}')";; esac
+    [ "${CITE_JOBS:-16}" -ge 1 ] 2>/dev/null || die "CITE_JOBS must be >= 1 (got '${CITE_JOBS}')" ;;
 esac
 case "$cmd" in
   permalink) cmd_permalink "$@" ;;

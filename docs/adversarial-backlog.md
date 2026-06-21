@@ -309,3 +309,18 @@ refactor. three real findings, two of them fail-opens (the dangerous class):
 documented won't-fix nits confirmed: deeply-nested-paren urls (SKILL line 77, optional-audit only), lint
 --fix drops the human label (by design). process nit: tag releases (no v* tags existed) , done from v3.20.0.
 73 -> 76 tests green.
+
+## v3.20.1 -> v3.20.2: the confirming round caught that the v3.20 perl fix was INADEQUATE
+
+honest correction: v3.20.0 claimed `perl -e1` "catches absent AND broken" perl. it does NOT. a stub /
+wrong-arch / corrupt perl can satisfy the trivial `-e1` yet no-op or error on the real `-0777 -pe` slurp
+mode, so the SAME fail-open reopened , prove reported "prose intact" on a full rewrite, and check PASSed a
+dead-link+changed-prose post (cmd_links returns empty under broken perl -> nlink=0 -> the v3.20 check guard
+never fires). both BLOCKING, both rooted in one bad probe. FIX: gate with the ACTUAL work mode , a
+`printf A | perl -0777 -pe 's/A/B/'` round-trip that must yield B, which a no-op/erroring perl fails. that
+closes prove/check/lint/links + the json-url-blanking, all of which were downstream of the same blind spot.
+also REAL (over-reach): the v3.20 CITE_JOBS validation ran for EVERY command, so a stray CITE_JOBS=auto in
+the env falsely killed links/prove/lint/insert/flag/permalink (none use parallelism). FIX: scope the
+CITE_JOBS check to verify/check/sweep only (still at dispatch, so check/sweep can't swallow it).
+defenses that HELD (verified, not re-investigated): insert fails closed under broken perl; lint --fix fails
+closed; huge CITE_JOBS dies; $0 with a space is xargs-robust. +2 tests (broken-perl-caught, CITE_JOBS-scoped).
