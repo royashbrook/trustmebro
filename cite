@@ -15,7 +15,7 @@ set +x 2>/dev/null || true
 unset BASH_XTRACEFD 2>/dev/null || true
 set -uo pipefail
 
-VERSION=3.18.0
+VERSION=3.19.0
 
 die() {
   [ "${CITE_JSON:-0}" = 1 ] && printf '{"error":"%s","ok":false}\n' "$(_jesc "$1")"
@@ -94,7 +94,7 @@ cmd_permalink() {
   fi
 }
 
-_probe() { curl -s -o /dev/null -w '%{http_code}|%{url_effective}' -L --max-time 20 "$1" 2>/dev/null; }
+_probe() { command -v curl >/dev/null 2>&1 || die "cite needs curl to check links (deps: bash, git, curl, perl)"; curl -s -o /dev/null -w '%{http_code}|%{url_effective}' -L --max-time 20 "$1" 2>/dev/null; }
 # compare urls ignoring only scheme + trailing slash, so http->https / trailing-slash redirects are
 # not flagged but a real path/host move (the macvlan docs.docker.com/network->engine case) is.
 _norm() { printf '%s' "$1" | sed -e 's#^https\{0,1\}://##' -e 's#/$##'; }
@@ -102,6 +102,9 @@ _norm() { printf '%s' "$1" | sed -e 's#^https\{0,1\}://##' -e 's#/$##'; }
 _host_root() { printf '%s' "$1" | sed -E 's#^(https?://[^/]+).*#\1/#'; }
 # escape a string for embedding in a JSON double-quoted value.
 _jesc() { printf '%s' "${1:-}" | perl -pe 's/([\\"])/\\$1/g; s/\n/\\n/g; s/\r/\\r/g; s/\t/\\t/g; s/([\x00-\x1f])/sprintf("\\u%04x",ord($1))/ge' 2>/dev/null; }
+# build a JSON array from stdin in ONE perl pass (not one _jesc spawn per item , the 200x bottleneck).
+_json_arr()  { perl -0777 -ne 'my @x; for my $v (split /\n/,$_){ next if $v=~/^\s*$/; $v=~s/([\\"])/\\$1/g; $v=~s/([\x00-\x1f])/sprintf("\\u%04x",ord($1))/ge; push @x,"\"$v\"" } print "[".join(",",@x)."]"' 2>/dev/null; }
+_json_objs() { perl -0777 -ne 'my @x; for my $l (split /\n/,$_){ next unless $l=~/\t/; my($t,$h)=split /\t/,$l,2; for my $v ($t,$h){ $v=~s/([\\"])/\\$1/g; $v=~s/([\x00-\x1f])/sprintf("\\u%04x",ord($1))/ge } push @x,"{\"text\":\"$t\",\"href\":\"$h\"}" } print "[".join(",",@x)."]"' 2>/dev/null; }
 # turn a non-200 code into a dead-vs-gated hint, so the agent doesn't have to hand-roll the diagnosis.
 _codehint() {
   case "$1" in
@@ -144,10 +147,13 @@ cmd_verify() {
   if [ "$url" = "-" ]; then
     # batch: read urls on stdin, verify in PARALLEL (output unordered, each line complete), nonzero if any fail.
     export CITE_JSON CITE_XCHECK
-    local results
-    # -n1 (not -I{}): -I has a 255-byte replstr limit that silently DROPS long urls; -n1 appends the
-    # url as a positional arg with no length cap, so a long dead url can't sail through as a false PASS.
-    results="$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -v '^[[:space:]]*$' | xargs -P 8 -n1 "$0" __vone 2>/dev/null)"
+    local results pflag jobs="${CITE_JOBS:-16}"
+    # -n1 (not -I{}): -I has a 255-byte replstr limit that silently DROPS long urls; -n1 appends the url
+    # as a positional arg with no cap. -P jobs (default 16, tunable via CITE_JOBS) , verify is pure network
+    # wait, so width is the only lever and 16 ~halves wall time vs 8 before host saturation. busybox xargs
+    # has no -P; fall back to sequential so batch still WORKS (just slower) instead of erroring.
+    if printf '' | xargs -P 2 true >/dev/null 2>&1; then pflag="-P $jobs"; else pflag=""; fi
+    results="$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -v '^[[:space:]]*$' | awk '!seen[$0]++' | xargs $pflag -n1 "$0" __vone 2>/dev/null)"
     [ -n "$results" ] && printf '%s\n' "$results"
     if [ "${CITE_JSON:-0}" = 1 ]; then printf '%s' "$results" | grep -q '"ok":false' && return 1 || return 0
     else printf '%s' "$results" | grep -q '^FAIL' && return 1 || return 0; fi
@@ -191,10 +197,7 @@ cmd_links() {
     while(/^[ ]{0,3}\[[^\]]+\]:\s+(\S+)/mg){ my $u=$1; $u=~s/^<//; $u=~s/>$//; next if $u=~m{^https?://}; print "$u\n" }
   ' | awk '!seen[$0]++')"
   if [ "${CITE_JSON:-0}" = 1 ]; then
-    local ju jr
-    ju="$(printf '%s' "$urls" | grep -v '^[[:space:]]*$' | while IFS= read -r u; do printf '"%s",' "$(_jesc "$u")"; done)"; ju="${ju%,}"
-    jr="$(printf '%s' "$rel"  | grep -v '^[[:space:]]*$' | while IFS= read -r u; do printf '"%s",' "$(_jesc "$u")"; done)"; jr="${jr%,}"
-    printf '{"urls":[%s],"relative":[%s]}\n' "$ju" "$jr"
+    printf '{"urls":%s,"relative":%s}\n' "$(printf '%s' "$urls" | _json_arr)" "$(printf '%s' "$rel" | _json_arr)"
     return 0
   fi
   [ -n "$urls" ] && printf '%s\n' "$urls"
@@ -246,7 +249,8 @@ cmd_prove() {
       printf 'prove: note , %s is identical to HEAD (nothing to prove). if you already committed the cites, pass the base ref: cite prove %s <base>.\n' "$rel" "$base" >&2
   else
     printf 'prove: PROSE CHANGED in %s , cite must not rewrite prose. visible-text diff (- was, + now):\n' "$rel" >&2
-    diff <(printf '%s\n' "$olds") <(printf '%s\n' "$news") >&2
+    local _o _n; _o="$(mktemp)"; _n="$(mktemp)"; printf '%s\n' "$olds" > "$_o"; printf '%s\n' "$news" > "$_n"
+    diff "$_o" "$_n" >&2; rm -f "$_o" "$_n"
     exit 1
   fi
   return 0
@@ -279,10 +283,8 @@ cmd_lint() {
   fi
   local out; out="$(_lint_scan "$f")"
   if [ "${CITE_JSON:-0}" = 1 ]; then
-    local items=""
-    [ -n "$out" ] && items="$(printf '%s\n' "$out" | grep -v '^[[:space:]]*$' | while IFS="	" read -r t h; do printf '{"text":"%s","href":"%s"},' "$(_jesc "$t")" "$(_jesc "$h")"; done)" && items="${items%,}"
     if [ -z "$out" ]; then printf '{"clean":true,"fixed":%s,"offenders":[]}\n' "$fixed"; return 0
-    else printf '{"clean":false,"fixed":%s,"offenders":[%s]}\n' "$fixed" "$items"; return 1; fi
+    else printf '{"clean":false,"fixed":%s,"offenders":%s}\n' "$fixed" "$(printf '%s' "$out" | _json_objs)"; return 1; fi
   fi
   [ "${CITE_FIX:-0}" = 1 ] && printf 'lint --fix: %s , synced %s url-as-text half-fix(es) to their href.\n' "$f" "$fixed"
   if [ -z "$out" ]; then [ "${CITE_FIX:-0}" = 1 ] || printf 'lint: %s , clean (no url-as-visible-text half-fixes).\n' "$f"; return 0; fi
@@ -379,18 +381,17 @@ cmd_check() {
   root="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || root=""
   # verify all links; a failure whose url is recorded in .cite-flags.md is a KNOWN flagged link (the
   # flag-don't-remove contract), so it counts as 'flagged, known', not a gate failure.
-  local links nlink vout u nfail=0 flagged=0 fu=""
+  local links nlink vout u nfail=0 flagged=0 ffail=""
   links="$(CITE_JSON=0 CITE_REL=0 cmd_links "$f" 2>/dev/null)"
   nlink="$(printf '%s' "$links" | grep -c .)"
   [ -n "$links" ] && vout="$(printf '%s\n' "$links" | CITE_JSON=0 cmd_verify - 2>/dev/null)"
   while IFS= read -r u; do
     [ -n "$u" ] || continue
     if [ -n "$root" ] && [ -f "$root/.cite-flags.md" ] && _flagged "$root/.cite-flags.md" "$u"; then flagged=$((flagged + 1))
-    else nfail=$((nfail + 1)); fu="${fu}\"$(_jesc "$u")\","; fi
+    else nfail=$((nfail + 1)); ffail="${ffail}${u}"$'\n'; fi
   done <<EOF
 $(printf '%s\n' "${vout:-}" | awk '/^FAIL/{print $2}')
 EOF
-  fu="${fu%,}"
   # prove WITH a reason , distinguish a real prose change (a failure) from prove being inapplicable
   # (file absent at base / not a git repo), which is NOT a failure of the agent's edits.
   local pstatus="ok" pfail=0
@@ -401,13 +402,12 @@ EOF
     elif ( cmd_prove "$f" "$base" ) >/dev/null 2>&1; then pstatus="prose intact"
     else pstatus="PROSE CHANGED vs $base"; pfail=1; fi
   fi
-  local nlint flagrec=0; nlint="$(_lint_scan "$f" | grep -c .)"
+  local nlint flagrec=0 loff; loff="$(_lint_scan "$f")"; nlint="$(printf '%s' "$loff" | grep -c .)"   # one scan, reused
   { [ -n "$root" ] && [ -f "$root/.cite-flags.md" ]; } && flagrec="$(grep -c '^- ' "$root/.cite-flags.md" 2>/dev/null || echo 0)"
   local ok=1; { [ "$nfail" -eq 0 ] && [ "$pfail" -eq 0 ] && [ "${nlint:-0}" -eq 0 ]; } || ok=0
   if [ "${CITE_JSON:-0}" = 1 ]; then
-    local off; off="$(_lint_scan "$f" | while IFS="	" read -r t h; do [ -n "$t" ] && printf '{"text":"%s","href":"%s"},' "$(_jesc "$t")" "$(_jesc "$h")"; done)"; off="${off%,}"
-    printf '{"file":"%s","links":%s,"link_failures":%s,"flagged_known":%s,"failed_urls":[%s],"prove":"%s","half_fixes":%s,"offenders":[%s],"flags_recorded":%s,"ok":%s}\n' \
-      "$(_jesc "$f")" "${nlink:-0}" "$nfail" "$flagged" "$fu" "$(_jesc "$pstatus")" "${nlint:-0}" "$off" "${flagrec:-0}" "$([ "$ok" -eq 1 ] && echo true || echo false)"
+    printf '{"file":"%s","links":%s,"link_failures":%s,"flagged_known":%s,"failed_urls":%s,"prove":"%s","half_fixes":%s,"offenders":%s,"flags_recorded":%s,"ok":%s}\n' \
+      "$(_jesc "$f")" "${nlink:-0}" "$nfail" "$flagged" "$(printf '%s' "$ffail" | _json_arr)" "$(_jesc "$pstatus")" "${nlint:-0}" "$(printf '%s' "$loff" | _json_objs)" "${flagrec:-0}" "$([ "$ok" -eq 1 ] && echo true || echo false)"
     [ "$ok" -eq 1 ]; return
   fi
   printf 'check %s (vs %s):\n' "$f" "$base"
@@ -461,6 +461,13 @@ done
 set -- ${_a[@]+"${_a[@]}"}
 
 cmd="${1:-}"; shift || true
+# preflight: perl is the load-bearing engine (extraction, the prove/lint gates, insert). without it every
+# perl call silently no-ops (2>/dev/null), so prove/insert would PASS while doing NOTHING , fail OPEN, the
+# dangerous kind. hard-fail loudly instead, for any real subcommand.
+case "$cmd" in
+  version|--version|-V|""|-h|--help|help) : ;;
+  *) command -v perl >/dev/null 2>&1 || die "cite needs perl (deps: bash, git, curl, perl). on Windows, run in WSL or git-bash with perl installed; native PowerShell/cmd is unsupported." ;;
+esac
 case "$cmd" in
   permalink) cmd_permalink "$@" ;;
   verify)    cmd_verify "$@" ;;

@@ -268,3 +268,26 @@ in `cite insert`, the v3.17 addition. proof that every new feature breeds the ne
   identical to HEAD and tells you to pass the base ref.
 73 tests green (+3, incl. insert-in-code, prove-catches-in-code, double-insert-no-nest). the laundering
 false-confidence (A-1a) is the documented is-it-right ceiling, not a defect , gates check mechanics, not judgment.
+
+## engineering review (v3.18 -> v3.19): stay bash, but fix the measured perf + portability holes
+
+aggressive 4-lens arch review (portability / performance / language / scope). STRATEGIC verdict, all four
+converged: STAY bash+perl, ONE tool. don't rewrite (rust/go/dotnet) , the consumer git-clones a skill, so a
+binary worsens distribution; deps are universal on mac/linux/CI; speed is network-bound; a rewrite discards
+18 versions + 73 tests of behavioral hardening for a green binary. the only pro-rewrite axis (regex tail) was
+already quarantined to the optional audit (v3.13). don't split url-validation (one 12-line curl wrapper behind
+verify+insert; splitting breaks insert's verify contract). the real boundary , mechanics (script) vs judgment
+(SKILL.md) , is already made. sql-spider being dotnet is a different consumer.
+
+but the perf/portability lenses MEASURED real holes, all fixed:
+- BLOCKING (fail-open): a perl-less box made every perl call silently no-op (2>/dev/null), so prove/insert
+  PASSED while doing nothing. FIX: a dispatch preflight hard-fails loudly if perl is missing; _probe does the
+  same for curl. (the dangerous failure was open, not closed.)
+- BLOCKING (perf): --json built arrays with one perl spawn PER url (links/lint/check) , 200-1800x slow
+  (links --json: ~9s -> 0.04s on a 1500-url file). FIX: _json_arr / _json_objs build the array in ONE perl
+  pass; cmd_check's double _lint_scan deduped to one.
+- verify parallelism 8 -> 16 (tunable via CITE_JOBS), + dedupe urls before fan-out + busybox fallback (no
+  -P -> sequential instead of erroring). measured ~7.7s -> ~5.4s on 100 urls.
+- replaced prove's diff <(...) process-substitution (a bashism) with a temp-file diff (dash/busybox-safe).
+73 tests green. (also: README still scopes macOS/Linux; native Windows needs WSL/git-bash + perl , now a
+loud preflight, not a silent pass.)
