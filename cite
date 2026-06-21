@@ -14,7 +14,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
-const VERSION = '4.0.2';
+const VERSION = '4.0.3';
 
 // ---- global flags (set by the arg parser below) ----
 let JSON_OUT = process.env.CITE_JSON === '1';
@@ -74,8 +74,11 @@ const CITE_CR = /<!--.*?-->|(?:`{3,}|~{3,})[^\n]*\n.*?\n[ \t]*(?:`{3,}|~{3,})[^\
 function maskCode(s) { return s.replace(new RegExp(CITE_CR, 'gs'), ''); }
 function escapeRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
+function isFile(f) { try { return fs.statSync(f).isFile(); } catch { return false; } }
 // ---- url helpers ----
-function norm(u) { return u.replace(/^https?:\/\//, '').replace(/\/$/, ''); }
+// normalize for the redirect compare: drop the #fragment (node fetch strips it from res.url, so comparing
+// with it always false-positives), then scheme + trailing slash. http->https / trailing-slash != a redirect.
+function norm(u) { return u.replace(/#.*$/, '').replace(/^https?:\/\//, '').replace(/\/$/, ''); }
 function hostRoot(u) { const m = u.match(/^(https?:\/\/[^/]+)/); return m ? m[1] + '/' : u; }
 function codehint(code) {
   if (code === '403' || code === '429' || code === '503') return 'often bot/JS-gated , cross-check a non-gated source (registry index/api) before calling it dead';
@@ -179,8 +182,17 @@ function extractLinks(masked) {
   while ((m = reRefU.exec(masked))) { let u = m[1].replace(/^</, '').replace(/>$/, ''); if (/^https?:\/\//.test(u)) urls.push(u); }
   const reAuto = /<(https?:\/\/[^>\s]+)>/g;
   while ((m = reAuto.exec(masked))) urls.push(m[1]);
+  // bare urls: run ONLY over text with the structural links already removed, so the bare scanner can't
+  // manufacture a truncated phantom of a link whose url contains a paren (e.g. .../Paxos_(computer_science)
+  // -> a dead .../Paxos_). the structural extractors above already captured those correctly.
+  const bareSrc = masked
+    .replace(/\[[^\]]*\]\((?:[^()\s]|\([^()\s]*\))*\)/g, ' ')      // inline links/images
+    .replace(/<a\b[^>]*?>.*?<\/a>/gis, ' ')                        // html anchors
+    .replace(/href\s*=\s*(["'])[^"']*\1/gi, ' ')                   // stray href attrs
+    .replace(/<https?:\/\/[^>\s]+>/g, ' ')                         // autolinks
+    .replace(/^[ ]{0,3}\[[^\]]+\]:[ \t]+\S+/gm, ' ');             // ref-def targets
   const reBare = /(?:^|[\s(\[])(https?:\/\/[^\s<>()\[\]"']+)/gm;
-  while ((m = reBare.exec(masked))) urls.push(m[1].replace(/[.,;:!?]+$/, ''));
+  while ((m = reBare.exec(bareSrc))) urls.push(m[1].replace(/[.,;:!?]+$/, ''));
   // relative targets (inline + ref-def), non-http
   const reRelInline = /\[[^\]]*\]\(([^()\s][^()]*)\)/g;
   while ((m = reRelInline.exec(masked))) { if (!/^https?:\/\//.test(m[1])) rel.push(m[1]); }
@@ -193,7 +205,7 @@ function extractLinks(masked) {
 function cmdLinks(args) {
   const f = args[0];
   if (!f) usage();
-  if (!fs.existsSync(f)) die(`links: no file '${f}'`);
+  if (!isFile(f)) die(`links: no file '${f}'`);
   const masked = maskCode(fs.readFileSync(f, 'utf8'));
   const { urls, rel } = extractLinks(masked);
   if (JSON_OUT) { process.stdout.write(JSON.stringify({ urls, relative: rel }) + '\n'); return 0; }
@@ -231,7 +243,7 @@ function resolveRel(f) {
 function cmdProve(args) {
   const f = args[0], ref = args[1] || 'HEAD';
   if (!f) usage();
-  if (!fs.existsSync(f)) die(`prove: no file '${f}'`);
+  if (!isFile(f)) die(`prove: no file '${f}'`);
   const R = resolveRel(f);
   if (!R) die(`prove: not in a git repo: ${f}`);
   const old = gitOut(['-C', R.root, 'show', `${ref}:${R.rel}`]);
@@ -271,7 +283,7 @@ function lintScan(f) {
 function cmdLint(args) {
   const f = args[0];
   if (!f) usage();
-  if (!fs.existsSync(f)) die(`lint: no file '${f}'`);
+  if (!isFile(f)) die(`lint: no file '${f}'`);
   let fixed = 0;
   if (FIX) {
     const before = lintScan(f).length;
@@ -304,7 +316,7 @@ function cmdFlag(args) {
   const f = args[0];
   const reason = args.slice(1).join(' ');
   if (!f || !reason) die('flag: usage , cite flag <post> <reason...>');
-  if (!fs.existsSync(f)) die(`flag: no file '${f}'`);
+  if (!isFile(f)) die(`flag: no file '${f}'`);
   const R = resolveRel(f);
   if (!R) die(`flag: not in a git repo: ${f}`);
   const ts = new Date().toISOString().slice(0, 10);
@@ -329,7 +341,7 @@ function protSplit(text) {
 async function cmdInsert(args) {
   const f = args[0], phrase = args[1], url = args[2];
   if (!f || !phrase || !url) die('insert: usage , cite insert <file> <phrase> <url>');
-  if (!fs.existsSync(f)) die(`insert: no file '${f}'`);
+  if (!isFile(f)) die(`insert: no file '${f}'`);
   const src = fs.readFileSync(f, 'utf8');
   const q = new RegExp(escapeRegex(phrase), 'g');
   const parts = protSplit(src);
@@ -390,7 +402,7 @@ function quietProve(f, ref) {
 async function cmdCheck(args) {
   const f = args[0], base = args[1] || 'HEAD';
   if (!f) usage();
-  if (!fs.existsSync(f)) die(`check: no file '${f}'`);
+  if (!isFile(f)) die(`check: no file '${f}'`);
   const dir = fs.realpathSync(path.dirname(f));
   const rootRaw = gitOut(['-C', dir, 'rev-parse', '--show-toplevel']);
   const root = rootRaw ? rootRaw.trim() : '';
@@ -540,7 +552,7 @@ async function main() {
     case '': case '-h': case '--help': case 'help': usage(0); break;
     default: die(`unknown subcommand '${cmd}' (try: cite help)`);
   }
-  process.exit(rc || 0);
+  process.exitCode = rc || 0;   // NOT process.exit(): let the event loop drain stdout (a hard exit truncates a piped batch)
 }
 
 main().catch(e => die(String(e && e.message || e)));

@@ -320,6 +320,17 @@ rm -f "$jt"
 # (the bash+perl broken-perl fail-open test was removed in the node port , node is the runtime, there is no
 # perl gate; if node runs the script, the engine works. the dep surface is now node + git only.)
 
+# bare-url scanner must NOT manufacture a truncated phantom of a paren-url (cite's own insert produces these:
+# wikipedia _(computer_science) disambig pages). links should yield the full url once, no truncated dup.
+pp="$fix/paren.md"; printf 'we use [paxos](https://en.wikipedia.org/wiki/Paxos_(computer_science)) here.\n' > "$pp"
+plout="$("$CITE" links "$pp")"
+{ printf '%s\n' "$plout" | grep -qxF 'https://en.wikipedia.org/wiki/Paxos_(computer_science)' && ! printf '%s\n' "$plout" | grep -qxF 'https://en.wikipedia.org/wiki/Paxos_'; } && ok "no phantom truncated dup of a paren-url" || bad "paren-url phantom: $plout"
+rm -f "$pp"
+
+# a directory path gives a clean 'no file' error, not a raw node EISDIR leak (the lost [ -f ] check)
+out="$("$CITE" links "$fix" 2>&1)"; rc=$?
+{ [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q 'no file' && ! printf '%s' "$out" | grep -qi 'EISDIR'; } && ok "directory path -> clean 'no file' error" || bad "directory should give clean error (got: $out)"
+
 # CITE_JOBS is scoped to verify/check/sweep: a stray value must NOT kill non-parallel commands...
 out="$(CITE_JOBS=auto "$CITE" prove "$fix/src.txt" HEAD 2>&1)"
 printf '%s' "$out" | grep -q 'CITE_JOBS' && bad "CITE_JOBS falsely gates prove" || ok "CITE_JOBS does not gate non-parallel commands"
