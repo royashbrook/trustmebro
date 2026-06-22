@@ -398,3 +398,16 @@ usage run clean end-to-end. one real corruption found + fixed:
   nesting a link, exit 0. same nesting-corruption class as the v3.18 double-insert fix, for images (shared
   with perl). FIX: protSplit now protects images too (leading `!?`), so insert REFUSES a phrase that only
   lives in alt text (rc 1, "not found in citable prose"). +1 test. 89 tests green.
+
+## v4.0.6 -> v4.0.7: sixth JS sweep , insert protected-set broadened (stop the html whack-a-mole)
+
+sixth sweep: differential clean, cold usage clean. gate hunt found two MORE insert protected-set gaps , the
+same class as the autolink (v4.0.5) + image-alt (v4.0.6) ones: a phrase appearing ONLY inside (a) a
+linked-image's OUTER href `[![alt](img)](href)`, or (b) an html `<img>` tag, got wrapped + corrupted, exit 0
+(prove/lint fail open because the damage is markup-internal). RATHER than patch each markup form one-by-one,
+broadened protSplit: added a linked-image pattern + a BROAD `<[^>]+>` html-tag guard (covers <img>, <br>,
+autolinks, any tag) so the html side can't whack-a-mole further. normal-prose insert verified unchanged.
++2 tests. 91 tests green. NOTE: insert's protected-set is markup-enumeration and inherently best-effort for
+exotic markdown (link titles, ref-style, footnotes); the cases that slip require citing a phrase that ONLY
+appears inside markup/a url (pathological for real citation use), and the SKILL's "review the diff" is the
+final backstop. the core gates + differential + cold-usage have been clean throughout.

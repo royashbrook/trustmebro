@@ -356,6 +356,16 @@ im="$fix/img.md"; printf 'the chart ![global temperature rise since 1880](https:
 grep -q '!\[global temperature rise since 1880\]' "$im" && ok "image markup left intact" || bad "insert corrupted the image"
 rm -f "$im"
 
+# insert must not corrupt a linked-image's OUTER href, nor an html <img> tag
+li="$fix/linkimg.md"; printf 'banner [![logo](https://i.co/l.png)](https://example.com/landingpage) here.\n' > "$li"
+"$CITE" insert "$li" landingpage https://example.org >/dev/null 2>&1 && bad "insert wrapped a linked-image outer href" || ok "insert refuses inside a linked-image outer href"
+grep -qF '](https://example.com/landingpage)' "$li" && ok "linked-image outer href intact" || bad "insert corrupted the linked-image href"
+rm -f "$li"
+ht="$fix/imgtag.md"; printf 'logo <img src="https://example.com/brandlogo.png"> shown.\n' > "$ht"
+"$CITE" insert "$ht" brandlogo https://example.org >/dev/null 2>&1 && bad "insert wrapped inside an <img> tag" || ok "insert refuses inside an html <img> tag"
+grep -qF 'src="https://example.com/brandlogo.png"' "$ht" && ok "<img> tag intact" || bad "insert corrupted the <img> tag"
+rm -f "$ht"
+
 # CITE_JOBS is scoped to verify/check/sweep: a stray value must NOT kill non-parallel commands...
 out="$(CITE_JOBS=auto "$CITE" prove "$fix/src.txt" HEAD 2>&1)"
 printf '%s' "$out" | grep -q 'CITE_JOBS' && bad "CITE_JOBS falsely gates prove" || ok "CITE_JOBS does not gate non-parallel commands"
