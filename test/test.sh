@@ -272,7 +272,7 @@ printf 'fix it:\n\n~~~markdown\n[http://old.example/x](https://new.example/y)\n~
 diff -q "$tf" "$tf.bak" >/dev/null 2>&1 && ok "lint --fix protects ~~~ tilde fences" || bad "lint --fix corrupted a tilde-fenced code example"
 rm -f "$tf" "$tf.bak"
 
-# 23. cite insert: error only on 0 matches (missed add); wrap the FIRST occurrence; note on multiples
+# 23. trustmebro insert: error only on 0 matches (missed add); wrap the FIRST occurrence; note on multiples
 ins="$fix/ins.md"
 printf 'a unique raft phrase and a token bucket and another token bucket.\n' > "$ins"
 out="$("$TMB" insert "$ins" "no such phrase" https://example.com 2>&1)"; rc=$?

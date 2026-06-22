@@ -50,4 +50,4 @@ then put `trustmebro/trustmebro` on your `PATH` (a `tmb` alias ships alongside),
 
 [`SKILL.md`](SKILL.md) is the contract + playbook: find citable claims, classify code vs external,
 resolve (the repo-discovery ladder), insert inline, verify every link, review the diff. the helper
-(`trustmebro permalink` / `trustmebro verify`) only builds + checks links , you do the judgment. follow it directly.
+(`trustmebro insert` / `prove` / `lint` / `verify`, plus `permalink` for code mode) only builds + checks links , you do the judgment. follow it directly.

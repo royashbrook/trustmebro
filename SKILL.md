@@ -57,7 +57,7 @@ Know or infer the repo, read a `.tmb` map if present (`name = owner/repo`), or a
 
 ## Setup
 
-The `trustmebro` script is next to this file. Put it on PATH (`ln -s "$PWD/trustmebro" ~/.local/bin/trustmebro`) or call it by path. Needs `node` (>=18, for built-in `fetch`) and `git` (`gh` optional). No bash/perl/curl , runs on macOS, Linux, and Windows. Two roots: trustmebro operates on **the post's** git repo (where prove / flag / check work). Clone the helper **outside** that repo (or gitignore it), so it does not get committed into the post's tree.
+The `trustmebro` script is next to this file. Put it on PATH (`ln -s "$PWD/trustmebro" ~/.local/bin/trustmebro`) or call it by path. Invoke it as `trustmebro` or the short alias `tmb` , the two are identical. Needs `node` (>=18, for built-in `fetch`) and `git` (`gh` optional). No bash/perl/curl , runs on macOS, Linux, and Windows. Two roots: trustmebro operates on **the post's** git repo (where prove / flag / check work). Clone the helper **outside** that repo (or gitignore it), so it does not get committed into the post's tree.
 
 ## Helper reference
 
@@ -75,5 +75,7 @@ trustmebro version
 ```
 
 Add `--json` for structured output (links / verify / lint / check). To cite or flag a phrase that IS a flag token, end options with `--`: `trustmebro insert post.md -- --fix <url>`.
+
+**Environment.** `TMB_JOBS` sets batch parallelism for verify / check / sweep (default 16, the one knob with no flag). `TMB_JSON` / `TMB_XCHECK` / `TMB_FIX` / `TMB_REL` mirror `--json` / `--crosscheck` / `--fix` / `--relative`.
 
 **Works on markdown OR html** , a post, doc, readme, or article (`.md` / `.html`). insert writes a `[markdown](link)` for a `.md` file and an `<a href>` for a `.html` file (it keys off the extension; tell the user if you adapt). **Code regions** trustmebro skips = fenced ` ``` `/`~~~` blocks, inline `` `code` ``, html comments, and html `<pre>` / `<code>` blocks , NOT Markdown's 4-space-indented code blocks. Put code you don't want trustmebro to read/touch in a fenced (or `<pre>`) block. Other parser limits (optional-audit only; eyeball foreign docs): deeply-nested-paren urls, multi-line html anchors, html-entity hrefs, reference-style (`[text][ref]`) link bodies (insert/lint protect inline + html links, not ref-style).
