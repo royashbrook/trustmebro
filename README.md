@@ -54,7 +54,7 @@ every link resolves before it goes in (`cite verify`); a dead or dubious one is 
 
 anyone reading an article has an author on the other side basically saying 'trust me' to the reader. this tool tries to make that 'trust me bro' assumption a bit more realistic by providing some links to things that are meaningful. it also helps for someone writing a technical post that may need to link out to github lines of code for specific things they mention. so the intention is to improve the reader experience, and save some time for the author. you may still need to add more things, but this helps. it will also 'improve' a link if let's say you point to a file but no sha and no lines, it will try and improve that link based on the agents judgement. easy to revert if you dont' like it.
 
-cite is not deterministic because it is an agent tool, so different agents may flag different things. but the script it runs is deterministic.
+so cite isn't fully deterministic, and that's by design: the *judgment* , WHICH words deserve a link, and what the right source is , belongs to the agent reading your doc, the way it would belong to any editor, so different agents (or the same one with more context) may pick differently. the *mechanics* are the deterministic half: hand the `cite` script a phrase and a url and it resolves, wraps, and proves the same way every time. judgment is the agent's; the receipts are the tool's.
 
 ## what it definitely does
 
@@ -66,8 +66,8 @@ cite is not deterministic because it is an agent tool, so different agents may f
 ## what it doesn't do
 
 - **it never rewrites your prose.** `cite prove` reduces the doc to its reader-visible text and asserts it's byte-identical to before , only link markup may change.
-- it is NOT a fact-checker. cite adds + verifies *links* it doesn't provide any judgement
-- when mixing this tool with an ai agent, it may offer suggestions, but that's not part of the tool
+- **it doesn't fact-check.** cite adds + verifies *links*; whether a claim is *true* is the reader's call, made from the source , not cite's.
+- **the suggestions aren't the tool.** an agent driving cite might also propose other edits (a rewrite, a missing section); that's the agent's doing , the `cite` script itself only ever touches link markup.
 
 ## install
 
