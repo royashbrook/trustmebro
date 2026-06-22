@@ -14,7 +14,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
-const VERSION = '4.0.10';
+const VERSION = '4.0.11';
 
 // ---- global flags (set by the arg parser below) ----
 let JSON_OUT = process.env.CITE_JSON === '1';
@@ -68,9 +68,10 @@ function shaIsPushed(dir, sha) {
   return !!(o && o.trim());
 }
 
-// ---- the ONE code-region pattern (html comment, fenced ```/~~~ block, double/single inline code).
-// everything that must skip code consumes this one source so they can never diverge. ----
-const CITE_CR = /<!--.*?-->|(?:`{3,}|~{3,})[^\n]*\n.*?\n[ \t]*(?:`{3,}|~{3,})[^\n]*|``.*?``|`[^`\n]+`/.source;
+// ---- the ONE code-region pattern: html comment, html <pre>/<code> blocks (so HTML articles get the same
+// code-skip as markdown), fenced ```/~~~ blocks, double/single inline code. everything that must skip code
+// consumes this one source so they can never diverge. ----
+const CITE_CR = /<!--.*?-->|<pre\b[^>]*>.*?<\/pre>|<code\b[^>]*>.*?<\/code>|(?:`{3,}|~{3,})[^\n]*\n.*?\n[ \t]*(?:`{3,}|~{3,})[^\n]*|``.*?``|`[^`\n]+`/.source;
 function maskCode(s) { return s.replace(new RegExp(CITE_CR, 'gs'), ''); }
 function escapeRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 

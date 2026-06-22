@@ -441,3 +441,14 @@ citing a real post surfaced two things:
 note: cite's bare node-fetch UA gets bot-rate-limited (429) by some hosts where a browser wouldn't; the
 dead-vs-gated doctrine + this crosscheck fix diagnose it correctly. to ADD a link under a gate, confirm it's
 live via an alternate check first (what I did for the connected-component link). 91 tests green.
+
+## v4.0.11: HTML articles are first-class (Roy: "don't target only blog posts; we support html too, no?")
+
+cite already handled html LINKS everywhere (insert writes <a href> for .html; links/verify/lint/prove all
+read <a> anchors). the one gap: CITE_CR (code regions) only knew markdown code (fenced/inline/html-comment),
+NOT html <pre>/<code> , so a link or phrase inside <pre><code> in an html article was treated as live prose
+(links grabbed it; insert would wrap into it). repro confirmed. FIX: added <pre>...</pre> + <code>...</code>
+to CITE_CR, so html code blocks get the same skip as markdown fences across mask/strip/insert/lint. now
+.html articles are fully first-class. README + SKILL state "markdown OR html , post/doc/readme/article", and
+the code-regions note lists <pre>/<code>. +3 tests (html code-region masked, insert refuses inside <pre>,
+insert writes <a href> in .html). 94 tests green.

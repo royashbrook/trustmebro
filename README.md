@@ -48,6 +48,7 @@ cite's whole pitch is trust, so the guarantees are the point:
 - **it never rewrites your prose.** `cite prove` reduces the doc to its reader-visible text and asserts it's byte-identical to before , only link markup may change.
 - **it's checkable, not vibes.** `prove` + `lint` are mechanical gates with exit codes. a "cite-passed" post is one a machine verified, not one an agent said was fine.
 - **zero dependencies.** one node file, stdlib only. needs `node` (>=18) and `git`. runs on macOS, Linux, and Windows.
+- **markdown or html.** point it at a post, a doc, a readme, an article , `.md` or `.html`. insert writes a `[markdown](link)` or an `<a href>` to match the file, and it skips code regions in both (fenced ```` ``` ```` / `` `inline` `` for markdown, `<pre>` / `<code>` for html).
 
 what it is NOT: a fact-checker. cite adds + verifies *links*; whether a claim is *true* is still on you. it under-links on purpose , a missing citation is fine, a wrong one isn't.
 

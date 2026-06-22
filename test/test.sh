@@ -366,6 +366,16 @@ ht="$fix/imgtag.md"; printf 'logo <img src="https://example.com/brandlogo.png"> 
 grep -qF 'src="https://example.com/brandlogo.png"' "$ht" && ok "<img> tag intact" || bad "insert corrupted the <img> tag"
 rm -f "$ht"
 
+# HTML articles are first-class: <pre>/<code> are code regions (like markdown fences), and insert into a
+# .html file writes an <a href> anchor, not markdown.
+hp="$fix/article.html"; printf '<p>real prose names raft here.</p>\n<pre><code>example [x](https://example.com/in-code) inside code</code></pre>\n<p>inline <code>https://example.com/inline-code</code> too.</p>\n' > "$hp"
+hl="$("$CITE" links "$hp")"
+{ ! printf '%s' "$hl" | grep -q 'in-code'; } && ok "html <pre>/<code> masked from links" || bad "html code-region not masked: $hl"
+"$CITE" insert "$hp" "example" https://example.org >/dev/null 2>&1 && bad "insert wrapped a phrase only inside html <pre><code>" || ok "insert refuses a phrase only inside html <pre>/<code>"
+"$CITE" insert "$hp" "raft" https://raft.github.io >/dev/null 2>&1
+grep -qF '<a href="https://raft.github.io">raft</a>' "$hp" && ok "insert writes an <a href> anchor in a .html file" || bad "insert did not write html anchor"
+rm -f "$hp"
+
 # CITE_JOBS is scoped to verify/check/sweep: a stray value must NOT kill non-parallel commands...
 out="$(CITE_JOBS=auto "$CITE" prove "$fix/src.txt" HEAD 2>&1)"
 printf '%s' "$out" | grep -q 'CITE_JOBS' && bad "CITE_JOBS falsely gates prove" || ok "CITE_JOBS does not gate non-parallel commands"
