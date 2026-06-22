@@ -9,6 +9,29 @@ you find the source behind a post's concrete claims and insert verified citation
 SHA-pinned permalink with a line range) or an authoritative url , never inserting a link that doesn't
 resolve.
 
+## dependencies , check first
+
+`cite` needs exactly two things on the box: **`node` (>=18**, for built-in `fetch`) and **`git`**. it has
+ZERO npm dependencies , there is nothing to `npm install`. check both:
+
+```sh
+node --version && git --version    # node must be v18 or newer
+```
+
+if one is missing, install it with whatever the box has (no project setup, just the binary):
+
+```sh
+# node (>=18):
+brew install node            # macOS (Homebrew)
+sudo apt-get install -y nodejs   # Debian/Ubuntu  (if the repo's node is <18, use nodesource or nvm/fnm)
+winget install OpenJS.NodeJS # Windows
+# no root? install node per-user: see https://github.com/nvm-sh/nvm or https://github.com/Schniz/fnm
+# git: brew install git / sudo apt-get install -y git / winget install Git.Git
+```
+
+if you cannot install a dependency (no package manager, no permission), say so and ask the user , don't
+guess. once `node --version` and `git --version` both work, continue.
+
 ## install (any agent)
 
 `cite` is a single self-contained node script (needs `node` >=18 + `git`). get it on the box:

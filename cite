@@ -14,7 +14,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
-const VERSION = '4.0.4';
+const VERSION = '4.0.5';
 
 // ---- global flags (set by the arg parser below) ----
 let JSON_OUT = process.env.CITE_JSON === '1';
@@ -228,7 +228,7 @@ function strip(text) {
       .replace(/<a\b[^>]*?>(.*?)<\/a>/gis, (m, t) => tok(t))                       // html anchor -> visible text
       .replace(/^([ ]{0,3}\[[^\]]+\]:[ \t]+)\S+/gm, '$1<URL>');                    // ref-def target: markup
   }
-  return parts.join('');
+  return parts.join('').replace(/\n+$/, '');   // drop trailing newline(s) so a pure EOF-newline delta (editors add one on save) isn't a false PROSE-CHANGED (perl's $() did this)
 }
 
 function resolveRel(f) {
@@ -334,7 +334,7 @@ function isFlagged(flagsFile, url) {
 
 // ---- insert ----
 function protSplit(text) {
-  const prot = new RegExp('(' + CITE_CR + '|(?<!\\!)\\[[^\\]]*\\]\\((?:[^()\\s]|\\([^()\\s]*\\))*\\)|<a\\b[^>]*?>.*?<\\/a>)', 's');
+  const prot = new RegExp('(' + CITE_CR + '|(?<!\\!)\\[[^\\]]*\\]\\((?:[^()\\s]|\\([^()\\s]*\\))*\\)|<a\\b[^>]*?>.*?<\\/a>|<https?:\\/\\/[^>\\s]+>)', 's');   // protect autolinks too (insert must not wrap inside <https://...>)
   return text.split(prot); // odd indices = protected (code or existing link)
 }
 

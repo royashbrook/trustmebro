@@ -12,6 +12,7 @@ is never inserted unless it resolves.**
 script onto the box and read [`SKILL.md`](SKILL.md) , that's the whole onboarding.
 
 ```sh
+node --version && git --version    # deps: node >=18 + git, nothing else (no npm install). missing one? see AGENTS.md.
 git clone https://github.com/royashbrook/cite
 chmod +x cite/cite
 # then put cite/cite on your PATH, or move it into your agent's skills/tools dir

@@ -337,6 +337,19 @@ rm -f "$lw"
 out="$("$CITE" links "$fix" 2>&1)"; rc=$?
 { [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q 'no file' && ! printf '%s' "$out" | grep -qi 'EISDIR'; } && ok "directory path -> clean 'no file' error" || bad "directory should give clean error (got: $out)"
 
+# prove must NOT false-fail on a pure trailing-newline delta (editors add a final newline on save)
+nlf="$fix/eofnl.md"; printf 'a claim worth citing here.\nmore prose.' > "$nlf"   # committed WITHOUT trailing newline
+git -C "$fix" add eofnl.md; git -C "$fix" commit -qm eofnl >/dev/null
+printf 'a claim worth [citing](https://example.com) here.\nmore prose.\n' > "$nlf"   # link added + trailing newline
+"$CITE" prove "$nlf" HEAD >/dev/null 2>&1 && ok "prove ignores a trailing-newline-only delta" || bad "prove false-failed on an EOF newline"
+git -C "$fix" rm -q eofnl.md >/dev/null 2>&1; git -C "$fix" commit -qm rmeof >/dev/null 2>&1; rm -f "$nlf"
+
+# insert must REFUSE a phrase that only appears inside an autolink (<https://...>), not corrupt it
+al="$fix/auto.md"; printf 'see <https://en.wikipedia.org/wiki/Paxos> for details.\n' > "$al"
+"$CITE" insert "$al" Paxos https://example.com >/dev/null 2>&1 && bad "insert wrapped inside an autolink" || ok "insert refuses a phrase only inside an autolink"
+grep -q '\[Paxos\]' "$al" && bad "insert corrupted the autolink" || ok "autolink left intact"
+rm -f "$al"
+
 # CITE_JOBS is scoped to verify/check/sweep: a stray value must NOT kill non-parallel commands...
 out="$(CITE_JOBS=auto "$CITE" prove "$fix/src.txt" HEAD 2>&1)"
 printf '%s' "$out" | grep -q 'CITE_JOBS' && bad "CITE_JOBS falsely gates prove" || ok "CITE_JOBS does not gate non-parallel commands"
