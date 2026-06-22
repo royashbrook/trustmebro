@@ -50,17 +50,24 @@ cite makes three kinds of link, in value order. in every one the **words don't c
 
 every link resolves before it goes in (`cite verify`); a dead or dubious one is flagged, never faked. (and yes , every link in this README is one cite itself verified.)
 
-## what it guarantees
+## what it tries to do
 
-the idea isn't "trust me." it's the opposite: assume your reader **shouldn't** take your word, and give them the receipts to check you. cite doesn't decide whether a claim is true , write "sqlite is trash" or "sqlite is the best thing ever" and it does the same thing, links [sqlite](https://www.sqlite.org/) so the reader can go judge for themselves. so the guarantees are about the receipts being real:
+anyone reading an article has an author on the other side basically saying 'trust me' to the reader. this tool tries to make that 'trust me bro' assumption a bit more realistic by providing some links to things that are meaningful. it also helps for someone writing a technical post that may need to link out to github lines of code for specific things they mention. so the intention is to improve the reader experience, and save some time for the author. you may still need to add more things, but this helps. it will also 'improve' a link if let's say you point to a file but no sha and no lines, it will try and improve that link based on the agents judgement. easy to revert if you dont' like it.
+
+cite is not deterministic because it is an agent tool, so different agents may flag different things. but the script it runs is deterministic.
+
+## what it definitely does
 
 - **every link resolves, or it gets flagged.** a link is never inserted unless it returns HTTP 200. a dead or dubious one is recorded to `.cite-flags.md`, never faked.
-- **it never rewrites your prose.** `cite prove` reduces the doc to its reader-visible text and asserts it's byte-identical to before , only link markup may change.
 - **it's checkable, not vibes.** `prove` + `lint` are mechanical gates with exit codes. a "cite-passed" post is one a machine verified, not one an agent said was fine.
 - **zero dependencies.** one node file, stdlib only. needs `node` (>=18) and `git`. runs on macOS, Linux, and Windows.
 - **markdown or html.** point it at a post, a doc, a readme, an article , `.md` or `.html`. insert writes a `[markdown](link)` or an `<a href>` to match the file, and it skips code regions in both (fenced ```` ``` ```` / `` `inline` `` for markdown, `<pre>` / `<code>` for html).
 
-so, by design, it is NOT a fact-checker , and that's the point, not a caveat. cite adds + verifies *links*; whether a claim is *true* is for the reader to judge, cite just makes sure they can. it under-links on purpose , a missing citation is fine, a wrong one isn't.
+## what it doesn't do
+
+- **it never rewrites your prose.** `cite prove` reduces the doc to its reader-visible text and asserts it's byte-identical to before , only link markup may change.
+- it is NOT a fact-checker. cite adds + verifies *links* it doesn't provide any judgement
+- when mixing this tool with an ai agent, it may offer suggestions, but that's not part of the tool
 
 ## install
 
