@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/tests-91%20passing-111111?style=flat-square" alt="91 tests">
 </p>
 
-<p align="center"><strong>adds verified citation links to a markdown post. every link resolves or it gets flagged, and it never rewrites your prose.</strong></p>
+<p align="center"><strong>adds verified citation links to a markdown post. every link resolves or it gets flagged.</strong></p>
 
 ---
 
