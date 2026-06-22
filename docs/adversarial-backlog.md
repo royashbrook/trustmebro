@@ -388,3 +388,13 @@ KEPT as correct (not a bug): a half-fix link's DISPLAY-TEXT url is no longer ext
 (side effect of the v4.0.3 paren-phantom mask). the display text isn't a clickable target, and `lint` flags
 the half-fix anyway, so the check verdict agrees , JS is more correct than perl here.
 +1 test (lint leading-ws). 85 tests green.
+
+## v4.0.5 -> v4.0.6: fifth JS sweep , insert no longer corrupts image alt-text
+
+fifth sweep: differential clean (all v4.0.5 fixes hold, every diff maps to a known/documented item), cold
+usage run clean end-to-end. one real corruption found + fixed:
+- insert CORRUPTED image markup + reported success: protSplit's `(?<!\!)` excluded images, so a phrase
+  inside `![alt](src)` got wrapped (`![global [temp rise](url) since 1880](src)`), breaking the image +
+  nesting a link, exit 0. same nesting-corruption class as the v3.18 double-insert fix, for images (shared
+  with perl). FIX: protSplit now protects images too (leading `!?`), so insert REFUSES a phrase that only
+  lives in alt text (rc 1, "not found in citable prose"). +1 test. 89 tests green.

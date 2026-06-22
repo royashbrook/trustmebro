@@ -350,6 +350,12 @@ al="$fix/auto.md"; printf 'see <https://en.wikipedia.org/wiki/Paxos> for details
 grep -q '\[Paxos\]' "$al" && bad "insert corrupted the autolink" || ok "autolink left intact"
 rm -f "$al"
 
+# insert must REFUSE a phrase that only appears inside an IMAGE's alt text, not corrupt the image markup
+im="$fix/img.md"; printf 'the chart ![global temperature rise since 1880](https://example.com/c.png) is clear.\n' > "$im"
+"$CITE" insert "$im" "temperature rise" https://example.com >/dev/null 2>&1 && bad "insert wrapped inside image alt text" || ok "insert refuses a phrase only inside image alt text"
+grep -q '!\[global temperature rise since 1880\]' "$im" && ok "image markup left intact" || bad "insert corrupted the image"
+rm -f "$im"
+
 # CITE_JOBS is scoped to verify/check/sweep: a stray value must NOT kill non-parallel commands...
 out="$(CITE_JOBS=auto "$CITE" prove "$fix/src.txt" HEAD 2>&1)"
 printf '%s' "$out" | grep -q 'CITE_JOBS' && bad "CITE_JOBS falsely gates prove" || ok "CITE_JOBS does not gate non-parallel commands"

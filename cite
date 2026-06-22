@@ -14,7 +14,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
-const VERSION = '4.0.5';
+const VERSION = '4.0.6';
 
 // ---- global flags (set by the arg parser below) ----
 let JSON_OUT = process.env.CITE_JSON === '1';
@@ -334,7 +334,9 @@ function isFlagged(flagsFile, url) {
 
 // ---- insert ----
 function protSplit(text) {
-  const prot = new RegExp('(' + CITE_CR + '|(?<!\\!)\\[[^\\]]*\\]\\((?:[^()\\s]|\\([^()\\s]*\\))*\\)|<a\\b[^>]*?>.*?<\\/a>|<https?:\\/\\/[^>\\s]+>)', 's');   // protect autolinks too (insert must not wrap inside <https://...>)
+  // protect: code | inline links AND images (!?\[..\]\(..\)) | html anchors | autolinks. images are
+  // protected too (the leading !? ) , insert must not wrap a phrase inside an image's alt text and corrupt it.
+  const prot = new RegExp('(' + CITE_CR + '|!?\\[[^\\]]*\\]\\((?:[^()\\s]|\\([^()\\s]*\\))*\\)|<a\\b[^>]*?>.*?<\\/a>|<https?:\\/\\/[^>\\s]+>)', 's');
   return text.split(prot); // odd indices = protected (code or existing link)
 }
 
