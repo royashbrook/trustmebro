@@ -22,5 +22,5 @@ jobs:
       - uses: actions/checkout@v7
       - name: run tests
         run: |
-          chmod +x cite test/test.sh
+          chmod +x trustmebro test/test.sh
           ./test/test.sh

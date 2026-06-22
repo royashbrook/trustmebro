@@ -1,4 +1,7 @@
-# cite , adversarial review log + backlog
+# trustmebro , adversarial review log + backlog
+
+> historical note: this tool shipped as `cite` through v4.x and was renamed to **trustmebro** (command
+> `trustmebro` / `tmb`) at v5.0.0. references to `cite` below are the old command name during those rounds.
 
 5 rounds of adversarial cold-agent review (2026-06-20), per Roy's goal: iterate corrections + reviews
 until the agents reach consensus the tool is useful, or 10 rounds. **consensus reached at round 5.**
