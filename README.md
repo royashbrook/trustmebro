@@ -52,7 +52,7 @@ every link resolves before it goes in (`cite verify`); a dead or dubious one is 
 
 ## what it guarantees
 
-cite's whole pitch is trust, so the guarantees are the point:
+the idea isn't "trust me." it's the opposite: assume your reader **shouldn't** take your word, and give them the receipts to check you. cite doesn't decide whether a claim is true , write "sqlite is trash" or "sqlite is the best thing ever" and it does the same thing, links [sqlite](https://www.sqlite.org/) so the reader can go judge for themselves. so the guarantees are about the receipts being real:
 
 - **every link resolves, or it gets flagged.** a link is never inserted unless it returns HTTP 200. a dead or dubious one is recorded to `.cite-flags.md`, never faked.
 - **it never rewrites your prose.** `cite prove` reduces the doc to its reader-visible text and asserts it's byte-identical to before , only link markup may change.
@@ -60,7 +60,7 @@ cite's whole pitch is trust, so the guarantees are the point:
 - **zero dependencies.** one node file, stdlib only. needs `node` (>=18) and `git`. runs on macOS, Linux, and Windows.
 - **markdown or html.** point it at a post, a doc, a readme, an article , `.md` or `.html`. insert writes a `[markdown](link)` or an `<a href>` to match the file, and it skips code regions in both (fenced ```` ``` ```` / `` `inline` `` for markdown, `<pre>` / `<code>` for html).
 
-what it is NOT: a fact-checker. cite adds + verifies *links*; whether a claim is *true* is still on you. it under-links on purpose , a missing citation is fine, a wrong one isn't.
+so, by design, it is NOT a fact-checker , and that's the point, not a caveat. cite adds + verifies *links*; whether a claim is *true* is for the reader to judge, cite just makes sure they can. it under-links on purpose , a missing citation is fine, a wrong one isn't.
 
 ## install
 
@@ -95,7 +95,7 @@ full doctrine + the judgment calls (what a *technical generalist* reader needs e
 ## FAQ
 
 **does it check whether my claims are true?**
-no. it adds *verified links*, not verified facts. a link can resolve and still be the wrong source , that judgment stays with you (and the agent). cite makes the post easier to *read and trust*, it does not fact-check it.
+no. it adds *verified links*, not verified facts. a link can resolve and still be the wrong source , that judgment stays with you (and the agent). cite makes a post easier for a reader to *verify*, it does not fact-check it for them , that's the job, not a gap.
 
 **will it touch my writing?**
 no, and it proves it. `cite prove` fails if anything but link markup changed. that's the one rule the whole tool is built around.
