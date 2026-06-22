@@ -1,7 +1,9 @@
-<!-- logo goes here once a direction is picked:
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg"><img src="assets/logo.svg" width="200" alt="cite"></picture></p> -->
-
-<h1 align="center">cite</h1>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
+    <img src="assets/logo.svg" width="220" alt="cite">
+  </picture>
+</p>
 
 <p align="center"><em>[citation needed], handled.</em></p>
 
