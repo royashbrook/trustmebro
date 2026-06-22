@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 'use strict';
-// cite , find the source behind a post's claims and emit VERIFIED citation links.
+// trustmebro , find the source behind a post's claims and emit VERIFIED citation links.
 //
 // the agent does the judgment (which claims warrant a cite, which source backs each, which lines);
 // this script does the error-prone mechanics: a SHA-pinned + validated github permalink, a url that
@@ -14,37 +14,37 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
-const VERSION = '4.0.11';
+const VERSION = '5.0.0';
 
 // ---- global flags (set by the arg parser below) ----
-let JSON_OUT = process.env.CITE_JSON === '1';
-let XCHECK = process.env.CITE_XCHECK === '1';
-let FIX = process.env.CITE_FIX === '1';
-let REL = process.env.CITE_REL === '1';
+let JSON_OUT = process.env.TMB_JSON === '1';
+let XCHECK = process.env.TMB_XCHECK === '1';
+let FIX = process.env.TMB_FIX === '1';
+let REL = process.env.TMB_REL === '1';
 
 function die(msg) {
   if (JSON_OUT) process.stdout.write(JSON.stringify({ error: msg, ok: false }) + '\n');
-  process.stderr.write('cite: ' + msg + '\n');
+  process.stderr.write('trustmebro: ' + msg + '\n');
   process.exit(1);
 }
 
 function usage(code) {
-  process.stderr.write(`cite , verified citation links for an agent. The agent decides WHAT to cite; this builds + checks. Full doctrine: SKILL.md.
+  process.stderr.write(`trustmebro , verified citation links for an agent. The agent decides WHAT to cite; this builds + checks. Full doctrine: SKILL.md.
 
-  cite verify <url> | cite verify -   resolves? HTTP code + dead-vs-gated hint + redirect (batch: parallel, JSONL)
-  cite links <file>                   every link url (md / html href / refs / autolinks / bare), images excluded
-  cite insert <file> <phrase> <url>   verify <url> + wrap the FIRST citable match (skips code + existing links)
-  cite prove <file> [ref]             assert ONLY link markup changed vs ref (default HEAD); fails on any prose edit
-  cite lint <file>                    catch the url-as-text half-fix (--fix syncs it)
-  cite flag <post> <reason...>        record a dead link / dubious claim (with its url) to .cite-flags.md
-  cite check <post> [base]            optional audit: verify all links + prove + lint -> PASS/ISSUES
-  cite sweep <repo-dir> <base>        prove + lint over every changed .md (batch backstop)
-  cite preflight <repo-dir>           (code mode) slug / HEAD / pushed / visibility
-  cite permalink <repo-dir> <path> <start> [end] [--ref <ref>]   (code mode) sha-pinned, range-validated
-  cite version
+  trustmebro verify <url> | trustmebro verify -   resolves? HTTP code + dead-vs-gated hint + redirect (batch: parallel, JSONL)
+  trustmebro links <file>                   every link url (md / html href / refs / autolinks / bare), images excluded
+  trustmebro insert <file> <phrase> <url>   verify <url> + wrap the FIRST citable match (skips code + existing links)
+  trustmebro prove <file> [ref]             assert ONLY link markup changed vs ref (default HEAD); fails on any prose edit
+  trustmebro lint <file>                    catch the url-as-text half-fix (--fix syncs it)
+  trustmebro flag <post> <reason...>        record a dead link / dubious claim (with its url) to .tmb-flags.md
+  trustmebro check <post> [base]            optional audit: verify all links + prove + lint -> PASS/ISSUES
+  trustmebro sweep <repo-dir> <base>        prove + lint over every changed .md (batch backstop)
+  trustmebro preflight <repo-dir>           (code mode) slug / HEAD / pushed / visibility
+  trustmebro permalink <repo-dir> <path> <start> [end] [--ref <ref>]   (code mode) sha-pinned, range-validated
+  trustmebro version
 
 Flags: --json (links/verify/lint/check) , --crosscheck (verify) , --relative (links) , --fix (lint).
-Use -- to end flags when a phrase/reason IS a flag token: cite insert post.md -- --fix <url>.
+Use -- to end flags when a phrase/reason IS a flag token: trustmebro insert post.md -- --fix <url>.
 Note: prove/flag/check/sweep need the file in a git repo; links/verify/lint do not.
 `);
   process.exit(code == null ? 2 : code);
@@ -71,8 +71,8 @@ function shaIsPushed(dir, sha) {
 // ---- the ONE code-region pattern: html comment, html <pre>/<code> blocks (so HTML articles get the same
 // code-skip as markdown), fenced ```/~~~ blocks, double/single inline code. everything that must skip code
 // consumes this one source so they can never diverge. ----
-const CITE_CR = /<!--.*?-->|<pre\b[^>]*>.*?<\/pre>|<code\b[^>]*>.*?<\/code>|(?:`{3,}|~{3,})[^\n]*\n.*?\n[ \t]*(?:`{3,}|~{3,})[^\n]*|``.*?``|`[^`\n]+`/.source;
-function maskCode(s) { return s.replace(new RegExp(CITE_CR, 'gs'), ''); }
+const TMB_CR = /<!--.*?-->|<pre\b[^>]*>.*?<\/pre>|<code\b[^>]*>.*?<\/code>|(?:`{3,}|~{3,})[^\n]*\n.*?\n[ \t]*(?:`{3,}|~{3,})[^\n]*|``.*?``|`[^`\n]+`/.source;
+function maskCode(s) { return s.replace(new RegExp(TMB_CR, 'gs'), ''); }
 function escapeRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
 function isFile(f) { try { return fs.statSync(f).isFile(); } catch { return false; } }
@@ -148,7 +148,7 @@ async function pool(items, n, fn) {
   return out;
 }
 
-function jobs() { return parseInt(process.env.CITE_JOBS || '16', 10); }
+function jobs() { return parseInt(process.env.TMB_JOBS || '16', 10); }
 
 async function cmdVerify(args) {
   const url = args[0];
@@ -160,7 +160,7 @@ async function cmdVerify(args) {
     if (items.length === 0) return 0;
     const results = await pool(items, jobs(), verifyOne);
     if (results.some(r => r == null)) { // a worker threw -> fan-out broke; never read empty as all-clear
-      process.stderr.write(`cite: verify produced no output for ${items.length} url(s) , the fan-out failed\n`);
+      process.stderr.write(`trustmebro: verify produced no output for ${items.length} url(s) , the fan-out failed\n`);
       return 1;
     }
     for (const r of results) process.stdout.write(emitVerify(r) + '\n');
@@ -221,7 +221,7 @@ function cmdLinks(args) {
 
 // ---- prove: reduce a doc to reader-visible prose, compare to a ref ----
 function strip(text) {
-  const parts = text.split(new RegExp('(' + CITE_CR + ')', 's')); // odd indices = code regions, verbatim
+  const parts = text.split(new RegExp('(' + TMB_CR + ')', 's')); // odd indices = code regions, verbatim
   const tok = t => t.replace(/https?:\/\/[^\s<>"]+/g, '<URL>');
   for (let i = 0; i < parts.length; i++) {
     if (i % 2) continue;
@@ -255,14 +255,14 @@ function cmdProve(args) {
   if (olds === news) {
     process.stdout.write(`prove: ${R.rel} , only link markup changed; prose intact.\n`);
     if (!args[1] && gitOk(['-C', R.root, 'diff', '--quiet', 'HEAD', '--', R.rel])) {
-      process.stderr.write(`prove: note , ${R.rel} is identical to HEAD (nothing to prove). if you already committed the cites, pass the base ref: cite prove ${R.base} <base>.\n`);
+      process.stderr.write(`prove: note , ${R.rel} is identical to HEAD (nothing to prove). if you already committed the cites, pass the base ref: trustmebro prove ${R.base} <base>.\n`);
     }
     return 0;
   }
-  process.stderr.write(`prove: PROSE CHANGED in ${R.rel} , cite must not rewrite prose. visible-text diff (- was, + now):\n`);
+  process.stderr.write(`prove: PROSE CHANGED in ${R.rel} , trustmebro must not rewrite prose. visible-text diff (- was, + now):\n`);
   try {
-    const a = path.join(require('node:os').tmpdir(), 'cite-o-' + process.pid);
-    const b = path.join(require('node:os').tmpdir(), 'cite-n-' + process.pid);
+    const a = path.join(require('node:os').tmpdir(), 'tmb-o-' + process.pid);
+    const b = path.join(require('node:os').tmpdir(), 'tmb-n-' + process.pid);
     fs.writeFileSync(a, olds + '\n'); fs.writeFileSync(b, news + '\n');
     try { execFileSync('diff', [a, b], { stdio: ['ignore', 2, 2] }); } catch {}   // diff body -> stderr (stdout stays clean)
     fs.rmSync(a, { force: true }); fs.rmSync(b, { force: true });
@@ -290,9 +290,9 @@ function cmdLint(args) {
   if (FIX) {
     const before = lintScan(f).length;
     let s = fs.readFileSync(f, 'utf8');
-    const cr = new RegExp('(' + CITE_CR + ')|(?<!\\!)\\[([^\\]]*)\\]\\(((?:[^()\\s]|\\([^()\\s]*\\))+)\\)', 'gs');
+    const cr = new RegExp('(' + TMB_CR + ')|(?<!\\!)\\[([^\\]]*)\\]\\(((?:[^()\\s]|\\([^()\\s]*\\))+)\\)', 'gs');
     s = s.replace(cr, (m, c, t, h) => c !== undefined ? c : ((/^https?:\/\//.test(t) && t !== h) ? `[${h}](${h})` : `[${t}](${h})`));
-    const ch = new RegExp('(' + CITE_CR + ')|(<a\\b[^>]*?href\\s*=\\s*["\']?)([^"\'\\s>]+)(["\']?[^>]*>)(.*?)(</a>)', 'gis');
+    const ch = new RegExp('(' + TMB_CR + ')|(<a\\b[^>]*?href\\s*=\\s*["\']?)([^"\'\\s>]+)(["\']?[^>]*>)(.*?)(</a>)', 'gis');
     s = s.replace(ch, (m, c, p, h, mid, t, q) => {
       if (c !== undefined) return c;
       const tt = t.replace(/<[^>]*>/gs, '');
@@ -317,13 +317,13 @@ function cmdLint(args) {
 function cmdFlag(args) {
   const f = args[0];
   const reason = args.slice(1).join(' ');
-  if (!f || !reason) die('flag: usage , cite flag <post> <reason...>');
+  if (!f || !reason) die('flag: usage , trustmebro flag <post> <reason...>');
   if (!isFile(f)) die(`flag: no file '${f}'`);
   const R = resolveRel(f);
   if (!R) die(`flag: not in a git repo: ${f}`);
   const ts = new Date().toISOString().slice(0, 10);
-  fs.appendFileSync(path.join(R.root, '.cite-flags.md'), `- [${ts}] ${R.rel} , ${reason}\n`);
-  process.stdout.write(`flag: recorded to ${R.root}/.cite-flags.md\n`);
+  fs.appendFileSync(path.join(R.root, '.tmb-flags.md'), `- [${ts}] ${R.rel} , ${reason}\n`);
+  process.stdout.write(`flag: recorded to ${R.root}/.tmb-flags.md\n`);
   return 0;
 }
 
@@ -340,7 +340,7 @@ function protSplit(text) {
   // image [![alt](img)](href) | an inline link or image !?[..](..) | a whole html anchor | ANY other html
   // tag (<img>, <br>, autolinks <http..>, etc., caught broadly so the html side can't whack-a-mole). order
   // matters: the linked-image + whole-anchor patterns come before the narrower ones.
-  const prot = new RegExp('(' + CITE_CR
+  const prot = new RegExp('(' + TMB_CR
     + '|\\[!\\[[^\\]]*\\]\\([^)]*\\)\\]\\((?:[^()\\s]|\\([^()\\s]*\\))*\\)'   // linked image [![alt](img)](href)
     + '|!?\\[[^\\]]*\\]\\((?:[^()\\s]|\\([^()\\s]*\\))*\\)'                  // inline link OR image
     + '|<a\\b[^>]*?>.*?<\\/a>'                                              // whole html anchor (protect its text too)
@@ -351,14 +351,14 @@ function protSplit(text) {
 
 async function cmdInsert(args) {
   const f = args[0], phrase = args[1], url = args[2];
-  if (!f || !phrase || !url) die('insert: usage , cite insert <file> <phrase> <url>');
+  if (!f || !phrase || !url) die('insert: usage , trustmebro insert <file> <phrase> <url>');
   if (!isFile(f)) die(`insert: no file '${f}'`);
   const src = fs.readFileSync(f, 'utf8');
   const q = new RegExp(escapeRegex(phrase), 'g');
   const parts = protSplit(src);
   let n = 0;
   for (let i = 0; i < parts.length; i++) { if (i % 2) continue; const mm = parts[i].match(q); if (mm) n += mm.length; }
-  if (n < 1) die(`insert: '${phrase}' not found in citable prose in ${f} (it may appear only inside code or an existing link, which cite won't touch)`);
+  if (n < 1) die(`insert: '${phrase}' not found in citable prose in ${f} (it may appear only inside code or an existing link, which trustmebro won't touch)`);
   const { code } = await probe(url);
   if (code !== '200') die(`insert: ${url} -> HTTP ${code} (${codehint(code)}) , not inserting an unverified link`);
   const html = /\.html?$/.test(f);
@@ -378,7 +378,7 @@ async function cmdInsert(args) {
 // ---- sweep ----
 async function cmdSweep(args) {
   const dir = args[0], base = args[1];
-  if (!dir || !base) die('sweep: usage , cite sweep <repo-dir> <base-ref>');
+  if (!dir || !base) die('sweep: usage , trustmebro sweep <repo-dir> <base-ref>');
   if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) die(`sweep: no dir '${dir}'`);
   const root = gitOut(['-C', dir, 'rev-parse', '--show-toplevel']);
   if (!root) die(`sweep: not a git repo: ${dir}`);
@@ -417,7 +417,7 @@ async function cmdCheck(args) {
   const dir = fs.realpathSync(path.dirname(f));
   const rootRaw = gitOut(['-C', dir, 'rev-parse', '--show-toplevel']);
   const root = rootRaw ? rootRaw.trim() : '';
-  const flagsFile = root ? path.join(root, '.cite-flags.md') : '';
+  const flagsFile = root ? path.join(root, '.tmb-flags.md') : '';
   const masked = maskCode(fs.readFileSync(f, 'utf8'));
   const { urls } = extractLinks(masked);
   const nlink = urls.length;
@@ -455,8 +455,8 @@ async function cmdCheck(args) {
     : `  links: ${nlink} checked, ${nfail} failed\n`);
   if (nfail > 0) for (const u of failedUrls) process.stdout.write(`         dead: ${u}\n`);
   process.stdout.write(`  prove: ${pstatus}\n`);
-  process.stdout.write(`  lint:  ${nlint === 0 ? 'clean' : nlint + ' half-fix(es) , run cite lint --fix'}\n`);
-  if (flagrec > 0) process.stdout.write(`  flags: ${flagrec} recorded in .cite-flags.md (read it , url-less claim flags do not show above)\n`);
+  process.stdout.write(`  lint:  ${nlint === 0 ? 'clean' : nlint + ' half-fix(es) , run trustmebro lint --fix'}\n`);
+  if (flagrec > 0) process.stdout.write(`  flags: ${flagrec} recorded in .tmb-flags.md (read it , url-less claim flags do not show above)\n`);
   process.stdout.write(ok ? '  => PASS\n' : '  => ISSUES\n');
   return ok ? 0 : 1;
 }
@@ -515,7 +515,7 @@ function cmdPreflight(args) {
   try { vis = execFileSync('gh', ['repo', 'view', slug, '--json', 'visibility', '-q', '.visibility'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim().toLowerCase(); } catch {}
   if (!vis) vis = 'unknown';
   process.stdout.write(`repo:       ${dir}\nslug:       ${slug}\nvisibility: ${vis}\nHEAD:       ${sha}\npushed:     ${pushed}\ndirty:      ${dirty}\n`);
-  if (pushed !== 'yes') process.stdout.write('note:       HEAD is not pushed , pin with `cite permalink ... --ref origin/<branch>` (or push first), else the links 404.\n');
+  if (pushed !== 'yes') process.stdout.write('note:       HEAD is not pushed , pin with `trustmebro permalink ... --ref origin/<branch>` (or push first), else the links 404.\n');
   if (vis === 'private') process.stdout.write('note:       repo is PRIVATE , do NOT cite it; its links 404 for anyone but you. find a public source or skip the cite.\n');
   return 0;
 }
@@ -539,11 +539,11 @@ async function main() {
   const cmd = rest[0] || '';
   const args = rest.slice(1);
 
-  // CITE_JOBS drives the parallel batch in verify/check/sweep only , validate it just for those, loudly,
+  // TMB_JOBS drives the parallel batch in verify/check/sweep only , validate it just for those, loudly,
   // so a typo can't silently disable verification (and the others aren't falsely killed by a stray value).
   if (cmd === 'verify' || cmd === 'check' || cmd === 'sweep') {
-    const j = process.env.CITE_JOBS;
-    if (j !== undefined && (!/^[0-9]+$/.test(j) || parseInt(j, 10) < 1)) die(`CITE_JOBS must be a positive integer (got '${j}')`);
+    const j = process.env.TMB_JOBS;
+    if (j !== undefined && (!/^[0-9]+$/.test(j) || parseInt(j, 10) < 1)) die(`TMB_JOBS must be a positive integer (got '${j}')`);
   }
 
   let rc = 0;
@@ -559,9 +559,9 @@ async function main() {
     case 'sweep': rc = await cmdSweep(args); break;
     case 'check': rc = await cmdCheck(args); break;
     case 'version': case '--version': case '-V':
-      process.stdout.write(JSON_OUT ? JSON.stringify({ version: VERSION }) + '\n' : `cite ${VERSION}\n`); break;
+      process.stdout.write(JSON_OUT ? JSON.stringify({ version: VERSION }) + '\n' : `trustmebro ${VERSION}\n`); break;
     case '': case '-h': case '--help': case 'help': usage(0); break;
-    default: die(`unknown subcommand '${cmd}' (try: cite help)`);
+    default: die(`unknown subcommand '${cmd}' (try: trustmebro help)`);
   }
   process.exitCode = rc || 0;   // NOT process.exit(): let the event loop drain stdout (a hard exit truncates a piped batch)
 }
