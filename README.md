@@ -19,7 +19,7 @@
 
 ---
 
-you wrote the post. cite is the one reading over your shoulder going "source?" , the calm librarian who, instead of just stamping `[citation needed]` in the margin, goes and finds the actual source, checks that it loads, links it inline, and hands you back a diff that proves it didn't touch a single one of your words.
+you wrote something. maybe it has some jargon in it. maybe it should have some links to source code. cite checks over what you have written and adds things in common sense places. it's a tool for an agent to use to help refine your post to make things easier for your reader. instead of just letting you know a citation may be needed, cite goes and finds the actual source, checks that it loads, links it inline, and hands you back a diff showing it just added citations and didn't fiddle with your prose.
 
 it's an [agent skill](SKILL.md) plus a small zero-dependency node CLI. the agent makes the judgment (which claims need a source, which source backs each); the CLI does the error-prone mechanics (resolve, verify, wrap, prove).
 
