@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/tests-91%20passing-111111?style=flat-square" alt="91 tests">
 </p>
 
-<p align="center"><strong>adds citation links. resolve or flag links. rewrite nothing.</strong></p>
+<p align="center"><strong>adds citation links for common sense things. ensure all links resolve, flag failures. rewrites nothing.</strong></p>
 
 ---
 
