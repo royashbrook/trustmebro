@@ -14,7 +14,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
-const VERSION = '4.0.7';
+const VERSION = '4.0.8';
 
 // ---- global flags (set by the arg parser below) ----
 let JSON_OUT = process.env.CITE_JSON === '1';
@@ -342,7 +342,7 @@ function protSplit(text) {
     + '|\\[!\\[[^\\]]*\\]\\([^)]*\\)\\]\\((?:[^()\\s]|\\([^()\\s]*\\))*\\)'   // linked image [![alt](img)](href)
     + '|!?\\[[^\\]]*\\]\\((?:[^()\\s]|\\([^()\\s]*\\))*\\)'                  // inline link OR image
     + '|<a\\b[^>]*?>.*?<\\/a>'                                              // whole html anchor (protect its text too)
-    + '|<[^>]+>'                                                           // any other html tag + angle-bracket autolinks
+    + '|<\\/?[a-zA-Z][^>]*>'                                               // any html tag (<img>, </p>, ...) + autolinks <http..>; the letter/slash start avoids matching math prose like "0 < n ... 2 > x"
     + ')', 's');
   return text.split(prot); // odd indices = protected (code or existing link)
 }

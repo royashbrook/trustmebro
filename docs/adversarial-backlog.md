@@ -411,3 +411,16 @@ autolinks, any tag) so the html side can't whack-a-mole further. normal-prose in
 exotic markdown (link titles, ref-style, footnotes); the cases that slip require citing a phrase that ONLY
 appears inside markup/a url (pathological for real citation use), and the SKILL's "review the diff" is the
 final backstop. the core gates + differential + cold-usage have been clean throughout.
+
+## v4.0.7 -> v4.0.8: seventh JS sweep , CONVERGED (insert + usage clean; tightened the html guard)
+
+seventh sweep: insert protected-set CLEAN (the v4.0.7 broadening held), cold usage run CLEAN (a realistic
+consensus-service blog post cited end-to-end). differential found ONE nit, self-inflicted by the v4.0.7 broad
+`<[^>]+>` guard: it matched math/comparison prose ("0 < n the algorithm and 2 > x") so insert false-REFUSED
+a legit phrase between a `<` and a `>` (safe , a clean refusal, never corruption). FIX: match only real html
+tags `<\/?[a-zA-Z][^>]*>` (still catches <img>/</a>/autolinks, not math prose). verified: math-prose phrase
+wraps; <img>/autolink/linked-image still refused. 91 tests green.
+
+=> RELEASE CANDIDATE. across 7 sweeps the port had ~16 real bugs found + fixed; the core gates, the
+differential-vs-perl, and the cold-usage runs are clean; the only residuals are documented best-effort
+(exotic markdown in insert's protected-set) backstopped by review-the-diff.
