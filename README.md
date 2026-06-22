@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/dependencies-0-111111?style=flat-square" alt="zero dependencies">
   <img src="https://img.shields.io/badge/node-%E2%89%A518-111111?style=flat-square" alt="node >= 18">
   <img src="https://img.shields.io/badge/runs%20on-mac%20%C2%B7%20linux%20%C2%B7%20windows-111111?style=flat-square" alt="cross-platform">
-  <img src="https://img.shields.io/badge/tests-95%20passing-111111?style=flat-square" alt="95 tests">
+  <a href="https://github.com/royashbrook/trustmebro/actions/workflows/ci.yml"><img src="https://github.com/royashbrook/trustmebro/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
 <p align="center"><strong>adds verified citation links for your jargon and claims , every link resolves or gets flagged, and it never rewrites a word.</strong></p>
@@ -56,7 +56,7 @@ every link resolves before it goes in (`tmb verify`); a dead or dubious one is f
 
 ## what it tries to do
 
-anyone reading an article has an author on the other side basically saying 'trust me' to the reader. this tool tries to make that 'trust me bro' assumption a bit more realistic by providing some links to things that are meaningful. it also helps for someone writing a technical post that may need to link out to github lines of code for specific things they mention. so the intention is to improve the reader experience, and save some time for the author. you may still need to add more things, but this helps. it will also 'improve' a link if let's say you point to a file but no sha and no lines, it will try and improve that link based on the agent's judgement. easy to revert if you don't like it.
+the goal is plain: make the post better for your reader, and save you some time. it links the meaningful stuff , jargon, claims, the github lines worth pointing at. it'll also 'improve' a weak link you already have: point at a file with no sha or line range and it pins + ranges it on the agent's judgement. you may still want to add some by hand; this just does the obvious passes, and it's all easy to revert.
 
 so trustmebro isn't fully deterministic, and that's by design: the *judgment* , WHICH words deserve a link, and what the right source is , belongs to the agent reading your doc, the way it would belong to any editor, so different agents (or the same one with more context) may pick differently. the *mechanics* are the deterministic half: hand the `tmb` script a phrase and a url and it resolves, wraps, and proves the same way every time. judgment is the agent's; the receipts are the tool's.
 

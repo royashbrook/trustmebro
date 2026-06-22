@@ -1,0 +1,17 @@
+name: ci
+
+# runs the offline suite on every push to main (one cheap ubuntu job, for a real badge).
+# the full 3-OS matrix stays manual in test.yml (don't burn runner minutes).
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: run tests
+        run: |
+          chmod +x trustmebro test/test.sh
+          ./test/test.sh
