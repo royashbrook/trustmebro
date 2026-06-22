@@ -23,22 +23,32 @@ you wrote something. maybe it has some jargon in it. maybe it should have some l
 
 it's an [agent skill](SKILL.md) plus a small zero-dependency node CLI. the agent makes the judgment (which claims need a source, which source backs each); the CLI does the error-prone mechanics (resolve, verify, wrap, prove).
 
-## before / after
+## what it cites
 
-you write:
+cite makes three kinds of link, in value order. in every one the **words don't change** , only the link markup , and `cite prove` checks that mechanically, so "it didn't touch my prose" is a passing test, not a promise.
 
-```
-raft keeps the replicas consistent, and the io_uring submission queue stays hot.
-```
+**EXPLAIN** , a term a non-specialist reader wouldn't know gets an authoritative explainer:
 
-cite hands back:
-
-```
-[raft](https://raft.github.io/) keeps the replicas consistent, and the
-[io_uring](https://kernel.org/doc/html/latest/io_uring.html) submission queue stays hot.
+```diff
+- raft keeps the replicas consistent.
++ [raft](https://raft.github.io/) keeps the replicas consistent.
 ```
 
-same sentence. same words, same order. the only thing that changed is the link markup , and `cite prove` checks that mechanically, so "it didn't rewrite my prose" isn't a promise, it's a passing test.
+**SUBSTANTIATE** , a real tool / library / protocol / stat gets its authoritative page (where a wrong link does the most damage, so cite is conservative here):
+
+```diff
+- we store everything in sqlite, one file on disk.
++ we store everything in [sqlite](https://www.sqlite.org/), one file on disk.
+```
+
+**SHOW code** (rare) , a claim about code gets a SHA-pinned, line-ranged github permalink that can't rot:
+
+```diff
+- the dialect pick lives in one small file.
++ the [dialect pick](https://github.com/royashbrook/sql-spider/blob/c06334e9a88eb9b82193d89cc6387df042c6e9dc/src/core/Dialect.cs#L1-L10) lives in one small file.
+```
+
+every link resolves before it goes in (`cite verify`); a dead or dubious one is flagged, never faked. (and yes , every link in this README is one cite itself verified.)
 
 ## what it guarantees
 
