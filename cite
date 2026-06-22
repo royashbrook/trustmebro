@@ -14,7 +14,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
-const VERSION = '4.0.9';
+const VERSION = '4.0.10';
 
 // ---- global flags (set by the arg parser below) ----
 let JSON_OUT = process.env.CITE_JSON === '1';
@@ -111,10 +111,13 @@ async function verifyOne(url) {
   }
   let hint = codehint(code);
   if (XCHECK) {
+    const gate = code === '403' || code === '429' || code === '503';   // gate codes are NOT death, even if the root is up
     const rcode = (await probe(hostRoot(url))).code;
-    hint = rcode === '200'
-      ? `host root is 200 but this path is ${code} , likely DEAD (page gone)`
-      : `host root is also ${rcode} , likely a host-wide GATE not a dead page (confirm via a non-gated index)`;
+    hint = gate
+      ? `HTTP ${code} is a rate-limit / bot gate, not death , the page is very likely live in a browser (host root is ${rcode}); re-check later or open it`
+      : rcode === '200'
+        ? `host root is 200 but this path is ${code} , likely DEAD (page gone)`
+        : `host root is also ${rcode} , likely a host-wide GATE not a dead page (confirm via a non-gated index)`;
   }
   return { url, ok: false, code, redir: '', hint };
 }

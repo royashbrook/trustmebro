@@ -1,6 +1,6 @@
 ---
 name: cite
-version: 4.0.9
+version: 4.0.10
 description: Insert verified links into a markdown post to make it easier to READ and TRUST, for the reader, not as proof. Three kinds: EXPLAIN a term a non-specialist would not know, SUBSTANTIATE a claim about an external thing, or (rarely) SHOW code via a sha-pinned permalink. Every link must resolve AND actually mean the thing in context (a live-but-wrong link is the worst output). NOT a fact-check of the document. Triggers: "cite this post", "add citations", "explain the jargon", "back up the claims", "make this post easier to follow". Auto-inserts; review the diff.
 ---
 
@@ -12,7 +12,7 @@ The agent makes every judgment call; a small helper (`cite`) does the mechanics.
 
 ## Quickstart
 
-1. **Read** the post. Find what a *technical generalist* (literate, not a specialist in this domain) would not know: jargon to EXPLAIN, external claims to SUBSTANTIATE. Under-link, zero is a fine outcome, never manufacture links. Don't leave the post's *central* term unlinked while citing a secondary one , unless it has no honest target, then flag it (under-linking the center beats laundering it).
+1. **Read** the post and do a deliberate **jargon sweep**: every concept, tool, protocol, or algorithm a *technical generalist* (literate, not a specialist in this domain) would not know is an EXPLAIN candidate; external claims are SUBSTANTIATE candidates. The bias is split by type: be **thorough on EXPLAIN** (it's low-risk and trivially removable, and a reader stuck on an unlinked term is the real cost , so surface every genuine unknown), and **conservative on SUBSTANTIATE** (a wrong backing link does damage). Never manufacture a link , no honest source means don't. Don't leave the post's *central* term unlinked while citing a secondary one , unless it has no honest target, then flag it (under-linking the center beats laundering it).
 2. **Resolve** each: web-search the source, **open it**, confirm it means the term / backs the claim *in this post's sense*. A live-but-wrong link is the worst output.
 3. **Flag, don't fabricate.** Can't back a claim, or it looks false? Don't invent a link: `cite flag <post> <reason>` (put the dead url IN the reason).
 4. **Insert** each with `cite insert <file> <phrase> <url>` , it verifies the url, wraps the **first** occurrence of the phrase (errors if the phrase isn't found , the missed-add safety net; notes if it occurs several times), in the doc's format (markdown, or HTML `<a href>`; tell the user if you adapt). To target a specific later occurrence, pass a longer unique phrase. Never rewrite prose.
@@ -27,11 +27,11 @@ A **technical generalist**: literate, but NOT a specialist in this post's domain
 
 1. **RESOLVES** , public HTTP 200 (`cite verify`).
 2. **RIGHT** , the page genuinely means the term / backs the claim in this post's sense. `cite verify` cannot check this; open it and read. Watch multi-sense terms (the `_(computing)` page, not the physics one), and prefer the canonical page over a stale-but-live one (follow the redirect).
-3. **HELPS** , more than no link. Under-link: a handful per section, not per sentence.
+3. **HELPS** , more than no link. Don't link a word the reader knows, and don't re-link the same term twice. But EXPLAIN is **per-concept, not rationed**: every *distinct* unknown term earns its one link, even several in a section. The thing to avoid is repetition and linking the obvious, not coverage.
 
 ## What to link (value-ranked)
 
-1. **EXPLAIN** (highest) , a concept the reader would not know (`ast`, `raft`, `io_uring`) gets an authoritative explainer. It defines the word; it does NOT vouch the surrounding claim.
+1. **EXPLAIN** (highest) , every concept/tool/protocol/algorithm the reader would not know (`ast`, `raft`, `io_uring`, `knowledge graph`, `connected component`) gets an authoritative explainer. Sweep for these and don't ration them: an explainer is unambiguous (low risk) and one keystroke to delete, so erring toward including a real unknown term serves the reader. It defines the word; it does NOT vouch the surrounding claim (see the laundering trap).
 2. **SUBSTANTIATE** , a real tool / library / protocol / stat / quote gets its authoritative page. Where a wrong link does the most damage.
 3. **SHOW code** (rare, gated on clarity not authorship) , when seeing the code illuminates a claim, a sha-pinned permalink. Public + verified. Skip proof-only code links.
 

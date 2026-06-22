@@ -424,3 +424,20 @@ wraps; <img>/autolink/linked-image still refused. 91 tests green.
 => RELEASE CANDIDATE. across 7 sweeps the port had ~16 real bugs found + fixed; the core gates, the
 differential-vs-perl, and the cold-usage runs are clean; the only residuals are documented best-effort
 (exotic markdown in insert's protected-set) backstopped by review-the-diff.
+
+## v4.0.10: real-use feedback from a live blog-cite run (the sql-spider post)
+
+citing a real post surfaced two things:
+- BUG (crosscheck): a 429 (and 403/503) path with a 200 host root was reported "likely DEAD". those are
+  GATE codes (rate-limit / bot-block), not death , the crosscheck wrongly overrode the gate signal because
+  the root was up. it would have told an agent a rate-limited-but-live link was dead (e.g. wikipedia
+  rate-limiting cite's bare fetch UA). FIX: gate codes (403/429/503) report "rate-limit/bot gate, not death"
+  regardless of root; only non-gate codes use the root-vs-path dead inference.
+- DOCTRINE (under-linking EXPLAIN): the run was too shy , it linked the clear jargon but missed central
+  terms like "knowledge graph" and "connected component". the old "under-link, zero is fine" rationed
+  EXPLAIN. SKILL now splits the bias by type: THOROUGH on EXPLAIN (a jargon sweep, per-concept not rationed,
+  low-risk + trivially removable, a stuck reader is the real cost) and CONSERVATIVE on SUBSTANTIATE (wrong =
+  damage). the technical-generalist tiebreaker + don't-manufacture + the laundering trap all stay.
+note: cite's bare node-fetch UA gets bot-rate-limited (429) by some hosts where a browser wouldn't; the
+dead-vs-gated doctrine + this crosscheck fix diagnose it correctly. to ADD a link under a gate, confirm it's
+live via an alternate check first (what I did for the connected-component link). 91 tests green.
