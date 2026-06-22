@@ -14,7 +14,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
-const VERSION = '4.0.8';
+const VERSION = '4.0.9';
 
 // ---- global flags (set by the arg parser below) ----
 let JSON_OUT = process.env.CITE_JSON === '1';
@@ -111,8 +111,7 @@ async function verifyOne(url) {
   }
   let hint = codehint(code);
   if (XCHECK) {
-    const r = await probe(hostRoot(url));
-    const rcode = r.code;
+    const rcode = (await probe(hostRoot(url))).code;
     hint = rcode === '200'
       ? `host root is 200 but this path is ${code} , likely DEAD (page gone)`
       : `host root is also ${rcode} , likely a host-wide GATE not a dead page (confirm via a non-gated index)`;
@@ -178,8 +177,9 @@ function extractLinks(masked) {
   while ((m = reInline.exec(masked))) urls.push(m[1]);
   const reHref = /href\s*=\s*(["']?)(https?:\/\/[^"'\s>]+)\1/gi;
   while ((m = reHref.exec(masked))) urls.push(m[2]);
-  const reRefU = /^[ ]{0,3}\[[^\]]+\]:\s+(\S+)/gm;
-  while ((m = reRefU.exec(masked))) { let u = m[1].replace(/^</, '').replace(/>$/, ''); if (/^https?:\/\//.test(u)) urls.push(u); }
+  // ref-def targets feed urls (http) or rel (non-http) from the one ref-def pattern
+  const reRef = /^[ ]{0,3}\[[^\]]+\]:\s+(\S+)/gm;
+  while ((m = reRef.exec(masked))) { const u = m[1].replace(/^</, '').replace(/>$/, ''); (/^https?:\/\//.test(u) ? urls : rel).push(u); }
   const reAuto = /<(https?:\/\/[^>\s]+)>/g;
   while ((m = reAuto.exec(masked))) urls.push(m[1]);
   // bare urls: run ONLY over text with the structural links already removed, so the bare scanner can't
@@ -196,8 +196,6 @@ function extractLinks(masked) {
   // relative targets (inline + ref-def), non-http
   const reRelInline = /\[[^\]]*\]\(([^()\s][^()]*)\)/g;
   while ((m = reRelInline.exec(masked))) { if (!/^https?:\/\//.test(m[1])) rel.push(m[1]); }
-  const reRelRef = /^[ ]{0,3}\[[^\]]+\]:\s+(\S+)/gm;
-  while ((m = reRelRef.exec(masked))) { let u = m[1].replace(/^</, '').replace(/>$/, ''); if (!/^https?:\/\//.test(u)) rel.push(u); }
   const dedup = a => { const s = new Set(); return a.filter(x => !s.has(x) && s.add(x)); };
   return { urls: dedup(urls), rel: dedup(rel) };
 }
