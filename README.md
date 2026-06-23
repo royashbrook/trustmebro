@@ -23,29 +23,29 @@
 
 you wrote something. maybe it has some jargon in it. maybe it should link out to source code. trustmebro checks over what you wrote and adds links in common-sense places. it's a tool for an agent to use to help refine your post for your reader. instead of just telling you a citation may be needed, trustmebro goes and finds the actual source, checks that it loads, links it inline, and hands you back a diff showing it only added citations and didn't fiddle with your prose.
 
-yes, the name is the joke: every article is an author saying *trust me bro* to a reader. trustmebro is the part that means you don't have to , it hands the reader the receipts.
+every article is an author saying *trust me bro* to a reader. trustmebro helps the reader actually be able to trust you.
 
-it's an [agent skill](SKILL.md) plus a small zero-dependency node CLI. the agent makes the judgment (which claims need a source, which source backs each); the CLI does the error-prone mechanics (resolve, verify, wrap, prove).
+it's an [agent skill](SKILL.md) plus a small zero-dependency node CLI. your agent makes the judgment (which claims need a source, which source backs each); the CLI does the error-prone mechanics (resolve, verify, wrap, prove). you can use trustmebro or tmb for short.
 
 ## what it cites
 
-trustmebro makes three kinds of link, in value order. in every one the **words don't change** , only the link markup , and `tmb prove` checks that mechanically, so "it didn't touch my prose" is a passing test, not a promise.
+trustmebro makes three kinds of link, in value order. in every one the **words don't change** , only the link markup , and `tmb prove` checks that mechanically, so "it didn't touch my prose" is a passing test when it runs, not a promise.
 
-**EXPLAIN** , a term a non-specialist reader wouldn't know gets an authoritative explainer:
+**EXPLAIN** - a term a non-specialist reader wouldn't know gets an authoritative explainer:
 
 ```diff
 - raft keeps the replicas consistent.
 + [raft](https://raft.github.io/) keeps the replicas consistent.
 ```
 
-**SUBSTANTIATE** , a real tool / library / protocol / stat gets its authoritative page (where a wrong link does the most damage, so trustmebro is conservative here):
+**SUBSTANTIATE** - a real tool / library / protocol / stat gets its authoritative page (where a wrong link does the most damage, so trustmebro is conservative here):
 
 ```diff
 - we store everything in sqlite, one file on disk.
 + we store everything in [sqlite](https://www.sqlite.org/), one file on disk.
 ```
 
-**SHOW code** (rare) , a claim about code gets a SHA-pinned, line-ranged github permalink that can't rot:
+**SHOW code** (rare) - a claim about code gets a SHA-pinned, line-ranged github permalink that can't rot:
 
 ```diff
 - the dialect pick lives in one small file.
@@ -56,9 +56,9 @@ every link resolves before it goes in (`tmb verify`); a dead or dubious one is f
 
 ## what it tries to do
 
-the goal is plain: make the post better for your reader, and save you some time. it links the meaningful stuff , jargon, claims, the github lines worth pointing at. it'll also 'improve' a weak link you already have: point at a file with no sha or line range and it pins + ranges it on the agent's judgement. you may still want to add some by hand; this just does the obvious passes, and it's all easy to revert.
+the goal is plain: make the post better for your reader, and save you some time. it links the meaningful stuff: jargon, claims, the github lines worth pointing at. it'll also 'improve' a weak link you already have: point at a file with no sha or line range and it pins + ranges it on the agent's judgement. you may still want to add some by hand; this just does the obvious passes, and it's all easy to revert.
 
-so trustmebro isn't fully deterministic, and that's by design: the *judgment* , WHICH words deserve a link, and what the right source is , belongs to the agent reading your doc, the way it would belong to any editor, so different agents (or the same one with more context) may pick differently. the *mechanics* are the deterministic half: hand the `tmb` script a phrase and a url and it resolves, wraps, and proves the same way every time. judgment is the agent's; the receipts are the tool's.
+so trustmebro isn't fully deterministic, and that's by design: the *judgment* (WHICH words deserve a link, and what the right source is) belongs to the agent reading your doc, the way it would belong to any editor, so different agents (or the same one with more context) may pick differently. the *mechanics* are the deterministic half: hand the `tmb` script a phrase and a url and it resolves, wraps, and proves the same way every time. judgment is the agent's; the receipts are the tool's.
 
 ## what it definitely does
 
@@ -74,6 +74,10 @@ so trustmebro isn't fully deterministic, and that's by design: the *judgment* , 
 - **the suggestions aren't the tool.** an agent driving trustmebro might also propose other edits (a rewrite, a missing section); that's the agent's doing , the `tmb` script itself only ever touches link markup.
 
 ## install
+
+easiest way is just to tell your ai agent of choice you want to use this skill, and point it at this repo. you can generally ask it to install it or just use it in that session on something if you want. in my testing, it's fine either way.
+
+if you want more details though...
 
 ```sh
 node --version && git --version   # deps: node >=18 + git. nothing to npm install. missing one? see AGENTS.md.
@@ -107,20 +111,17 @@ full doctrine + the judgment calls (what a *technical generalist* reader needs e
 
 ## FAQ
 
-**why call it trustmebro if it's the opposite of that?**
-exactly , that's the joke. "trust me bro" is what every unsourced claim quietly says to a reader. trustmebro is the tool that means you don't have to say it: it hands them the source instead. (run it as `tmb`, and yes, you can `alias` it to whatever you like.)
+**how well does this work**
+pretty well? i guess it is subjective as it depends on your ai agent. in my experience, it saves time and finds a decent amount of jargon using frontier models.
 
 **does it check whether my claims are true?**
 no. it adds *verified links*, not verified facts. a link can resolve and still be the wrong source , that judgment stays with you (and the agent). trustmebro makes a post easier for a reader to *verify*, it does not fact-check it for them , that's the job, not a gap.
 
 **will it touch my writing?**
-no, and it proves it. `tmb prove` fails if anything but link markup changed. that's the one rule the whole tool is built around.
-
-**why not just let the agent paste links directly?**
-because agents hallucinate urls, paste dead ones, and quietly reword your sentence while they're in there. trustmebro is the part that refuses to do any of that.
+no, and it proves it. `tmb prove` fails if anything but link markup changed.
 
 **dependencies?**
-node and git. that's it. no npm install, no lockfile, one file you can read in one sitting.
+node always; git only for the prove-gate + code permalinks. that's it. no npm install, no lockfile, [one file](https://github.com/royashbrook/trustmebro/blob/main/trustmebro) you can read in one sitting.
 
 ## license
 
