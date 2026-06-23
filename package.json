@@ -1,0 +1,31 @@
+{
+  "name": "trustmebro",
+  "version": "5.0.0",
+  "description": "the end of 'trust me bro' - an agent skill + zero-dep node CLI that adds verified citation links to your markdown/html posts. every link resolves or gets flagged, and it never rewrites a word.",
+  "bin": {
+    "trustmebro": "trustmebro",
+    "tmb": "trustmebro"
+  },
+  "files": [
+    "trustmebro",
+    "SKILL.md",
+    "AGENTS.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": "github:royashbrook/trustmebro",
+  "homepage": "https://github.com/royashbrook/trustmebro#readme",
+  "bugs": "https://github.com/royashbrook/trustmebro/issues",
+  "keywords": [
+    "citations",
+    "agent-skill",
+    "ai",
+    "markdown",
+    "links",
+    "cli",
+    "claude",
+    "documentation"
+  ],
+  "license": "MIT"
+}

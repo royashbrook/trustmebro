@@ -1,0 +1,27 @@
+name: release
+
+# publish trustmebro to npm when a v* tag is pushed, gated on the test suite passing first.
+# needs repo secret NPM_TOKEN (an npm "Automation" token). the version published is package.json's
+# version (the tag is only the trigger), so bump package.json + the script's VERSION together, then
+# tag the matching v<version>.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: test
+        run: |
+          chmod +x trustmebro test/test.sh
+          ./test/test.sh
+      - name: publish
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
