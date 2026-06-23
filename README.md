@@ -17,7 +17,7 @@
   <a href="https://github.com/royashbrook/trustmebro/actions/workflows/ci.yml"><img src="https://github.com/royashbrook/trustmebro/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
-<p align="center"><strong>adds verified citation links for your jargon and claims , every link resolves or gets flagged, and it never rewrites a word.</strong></p>
+<p align="center"><strong>adds verified citation links for your jargon and claims - every link resolves or gets flagged, and it never rewrites a word.</strong></p>
 
 ---
 
@@ -29,7 +29,7 @@ it's an [agent skill](SKILL.md) plus a small zero-dependency node CLI. your agen
 
 ## what it cites
 
-trustmebro makes three kinds of link, in value order. in every one the **words don't change** , only the link markup , and `tmb prove` checks that mechanically, so "it didn't touch my prose" is a passing test when it runs, not a promise.
+trustmebro makes three kinds of link, in value order. in every one the **words don't change** - only the link markup - and `tmb prove` checks that mechanically, so "it didn't touch my prose" is a passing test when it runs, not a promise.
 
 **EXPLAIN** - a term a non-specialist reader wouldn't know gets an authoritative explainer:
 
@@ -52,7 +52,7 @@ trustmebro makes three kinds of link, in value order. in every one the **words d
 + the [dialect pick](https://github.com/royashbrook/sql-spider/blob/c06334e9a88eb9b82193d89cc6387df042c6e9dc/src/core/Dialect.cs#L1-L10) lives in one small file.
 ```
 
-every link resolves before it goes in (`tmb verify`); a dead or dubious one is flagged, never faked. (and yes , every link in this README is one trustmebro itself verified.)
+every link resolves before it goes in (`tmb verify`); a dead or dubious one is flagged, never faked. (and yes - every link in this README is one trustmebro itself verified.)
 
 ## what it tries to do
 
@@ -64,14 +64,14 @@ so trustmebro isn't fully deterministic, and that's by design: the *judgment* (W
 
 - **every link resolves, or it gets flagged.** a link is never inserted unless it returns HTTP 200. a dead or dubious one is recorded to `.tmb-flags.md`, never faked.
 - **it's checkable, not vibes.** `prove` + `lint` are mechanical gates with exit codes. a "trustmebro-passed" post is one a machine verified, not one an agent said was fine.
-- **zero dependencies.** one node file, stdlib only. needs `node` (>=18) and `git`. runs on macOS, Linux, and Windows.
-- **markdown or html.** point it at a post, a doc, a readme, an article , `.md` or `.html`. insert writes a `[markdown](link)` or an `<a href>` to match the file, and it skips code regions in both (fenced ```` ``` ```` / `` `inline` `` for markdown, `<pre>` / `<code>` for html).
+- **zero dependencies.** one node file, stdlib only. needs `node` (>=18); `git` only for the prove-gate + code permalinks. runs on macOS, Linux, and Windows.
+- **markdown or html.** point it at a post, a doc, a readme, an article - `.md` or `.html`. insert writes a `[markdown](link)` or an `<a href>` to match the file, and it skips code regions in both (fenced ```` ``` ```` / `` `inline` `` for markdown, `<pre>` / `<code>` for html).
 
 ## what it doesn't do
 
-- **it never rewrites your prose.** `tmb prove` reduces the doc to its reader-visible text and asserts it's byte-identical to before , only link markup may change.
-- **it doesn't fact-check.** trustmebro adds + verifies *links*; whether a claim is *true* is the reader's call, made from the source , not trustmebro's.
-- **the suggestions aren't the tool.** an agent driving trustmebro might also propose other edits (a rewrite, a missing section); that's the agent's doing , the `tmb` script itself only ever touches link markup.
+- **it never rewrites your prose.** `tmb prove` reduces the doc to its reader-visible text and asserts it's byte-identical to before - only link markup may change.
+- **it doesn't fact-check.** trustmebro adds + verifies *links*; whether a claim is *true* is the reader's call, made from the source - not trustmebro's.
+- **the suggestions aren't the tool.** an agent driving trustmebro might also propose other edits (a rewrite, a missing section); that's the agent's doing - the `tmb` script itself only ever touches link markup.
 
 ## install
 
@@ -86,10 +86,10 @@ chmod +x trustmebro/trustmebro
 # then put trustmebro/trustmebro on your PATH (it ships a `tmb` symlink too), or drop it in your agent's skills/tools dir
 ```
 
-run it as `trustmebro` or the short alias `tmb` , same tool. on windows, or if the symlink doesn't survive your clone, just `alias tmb=trustmebro` (zero effort).
+run it as `trustmebro` or the short alias `tmb` - same tool. on windows, or if the symlink doesn't survive your clone, just `alias tmb=trustmebro` (zero effort).
 
 **Claude Code** (auto-loads as a skill): `git clone https://github.com/royashbrook/trustmebro ~/.claude/skills/trustmebro`
-**any other agent:** see [AGENTS.md](AGENTS.md). then point it at [SKILL.md](SKILL.md) , that's the whole playbook.
+**any other agent:** see [AGENTS.md](AGENTS.md). then point it at [SKILL.md](SKILL.md) - that's the whole playbook.
 
 ## the helper
 
@@ -99,11 +99,11 @@ the agent decides *what* to cite; the script does the mechanics. the command is 
 tmb verify <url> | tmb verify -    # resolves? HTTP code + dead-vs-gated hint + redirect (batch: parallel, JSONL)
 tmb links <file>                   # every link url (md / html / refs / autolinks / bare), images excluded
 tmb insert <file> <phrase> <url>   # safe add: verify url + wrap the FIRST citable match (skips code + existing links)
-tmb prove <file> [ref]             # assert ONLY link markup changed vs ref , fails on any prose edit
+tmb prove <file> [ref]             # assert ONLY link markup changed vs ref - fails on any prose edit
 tmb lint <file>                    # catch the half-fix: visible text is a url that differs from its href (--fix syncs it)
 tmb flag <post> <reason...>        # record a dead link / dubious claim to .tmb-flags.md
 tmb check <post> [base]            # optional one-shot: verify all links + prove + lint -> PASS/ISSUES
-tmb sweep <repo-dir> <base>        # prove + lint over every changed .md , backstop for a batch run
+tmb sweep <repo-dir> <base>        # prove + lint over every changed .md - backstop for a batch run
 tmb preflight / permalink          # (code mode) repo state / a SHA-pinned, range-validated github permalink
 ```
 
@@ -111,11 +111,11 @@ full doctrine + the judgment calls (what a *technical generalist* reader needs e
 
 ## FAQ
 
-**how well does this work**
+**how well does this work?**
 pretty well? i guess it is subjective as it depends on your ai agent. in my experience, it saves time and finds a decent amount of jargon using frontier models.
 
 **does it check whether my claims are true?**
-no. it adds *verified links*, not verified facts. a link can resolve and still be the wrong source , that judgment stays with you (and the agent). trustmebro makes a post easier for a reader to *verify*, it does not fact-check it for them , that's the job, not a gap.
+no. it adds *verified links*, not verified facts. a link can resolve and still be the wrong source - that judgment stays with you (and the agent). trustmebro makes a post easier for a reader to *verify*, it does not fact-check it for them - that's the job, not a gap.
 
 **will it touch my writing?**
 no, and it proves it. `tmb prove` fails if anything but link markup changed.
