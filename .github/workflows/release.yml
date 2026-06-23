@@ -21,7 +21,10 @@ jobs:
         run: |
           chmod +x trustmebro test/test.sh
           ./test/test.sh
-      - name: publish
-        run: npm publish --access public
+      - name: publish (bare + @royashbrook scope, same code from one tag)
+        run: |
+          npm publish --access public
+          npm pkg set name=@royashbrook/trustmebro
+          npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
