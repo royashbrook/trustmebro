@@ -88,6 +88,8 @@ chmod +x trustmebro/trustmebro
 
 run it as `trustmebro` or the short alias `tmb` - same tool. on windows, or if the symlink doesn't survive your clone, just `alias tmb=trustmebro` (zero effort).
 
+or skip the clone and run the CLI straight from npm: `npx @royashbrook/trustmebro <cmd>` (or `npm i -g @royashbrook/trustmebro` for the `trustmebro` + `tmb` commands). note: this gives you the CLI, not the [SKILL.md](SKILL.md) playbook , for an agent, the clone or the [MCP](https://royashbrook.com/trustmebro) carries the judgment.
+
 **Claude Code** (auto-loads as a skill): `git clone https://github.com/royashbrook/trustmebro ~/.claude/skills/trustmebro`
 **any other agent:** see [AGENTS.md](AGENTS.md). then point it at [SKILL.md](SKILL.md) - that's the whole playbook.
 
