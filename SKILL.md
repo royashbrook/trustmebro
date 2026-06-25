@@ -1,6 +1,6 @@
 ---
 name: trustmebro
-version: 5.1.0
+version: 5.1.1
 description: Insert verified links into a markdown or html post so a reader can READ and VERIFY it (hand them the source to check a claim, don't ask them to take your word; not a proof of truth). Three kinds: EXPLAIN a term a non-specialist would not know, SUBSTANTIATE a claim about an external thing, or (rarely) SHOW code via a sha-pinned permalink. Every link must resolve AND actually mean the thing in context (a live-but-wrong link is the worst output). NOT a fact-check of the document. Triggers: "cite this post", "add citations", "explain the jargon", "back up the claims", "make this post easier to follow". Sweeps jargon aggressively for a technical-generalist reader, auto-inserts verified links, then lists what it linked and invites you to add / remove / go more aggressive in one pass. Review the diff.
 ---
 

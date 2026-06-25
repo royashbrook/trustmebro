@@ -286,6 +286,16 @@ if curl -fsS -o /dev/null --max-time 8 https://example.com 2>/dev/null; then
 else ok "insert wrap/multi (skipped, offline)"; fi
 rm -f "$ins"
 
+# 23b. v5.1.1: insert never matches a term inside the leading yaml frontmatter (would corrupt the title)
+if curl -fsS -o /dev/null --max-time 8 https://example.com 2>/dev/null; then
+  fm="$fix/fm.md"
+  printf -- '---\ntitle: "my agent post"\n---\n\nthe agent runs here.\n' > "$fm"
+  "$TMB" insert "$fm" "agent" https://example.com >/dev/null 2>&1
+  { grep -qF 'title: "my agent post"' "$fm" && grep -qF 'the [agent](https://example.com) runs here.' "$fm"; } \
+    && ok "insert skips frontmatter, wraps the body occurrence" || bad "insert must skip frontmatter + wrap the body"
+  rm -f "$fm"
+else ok "insert frontmatter-skip (skipped, offline)"; fi
+
 # 24. v3.18: insert + prove are code-aware (the blocking corrupted-but-vouched bug)
 cz="$fix/cz.md"
 printf 'install with `pip install reqlib` to begin.\n' > "$cz"; git -C "$fix" add cz.md; git -C "$fix" commit -qm cz

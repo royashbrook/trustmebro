@@ -14,7 +14,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
-const VERSION = '5.0.0';
+const VERSION = '5.1.1';
 
 // ---- global flags (set by the arg parser below) ----
 let JSON_OUT = process.env.TMB_JSON === '1';
@@ -340,13 +340,20 @@ function protSplit(text) {
   // image [![alt](img)](href) | an inline link or image !?[..](..) | a whole html anchor | ANY other html
   // tag (<img>, <br>, autolinks <http..>, etc., caught broadly so the html side can't whack-a-mole). order
   // matters: the linked-image + whole-anchor patterns come before the narrower ones.
+  // peel a leading YAML frontmatter block (--- ... ---) so insert never matches a term in the title.
+  let prefix = '';
+  if (/^---\r?\n/.test(text)) {
+    const m = text.match(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/);
+    if (m) { prefix = m[0]; text = text.slice(prefix.length); }
+  }
   const prot = new RegExp('(' + TMB_CR
     + '|\\[!\\[[^\\]]*\\]\\([^)]*\\)\\]\\((?:[^()\\s]|\\([^()\\s]*\\))*\\)'   // linked image [![alt](img)](href)
     + '|!?\\[[^\\]]*\\]\\((?:[^()\\s]|\\([^()\\s]*\\))*\\)'                  // inline link OR image
     + '|<a\\b[^>]*?>.*?<\\/a>'                                              // whole html anchor (protect its text too)
     + '|<\\/?[a-zA-Z][^>]*>'                                               // any html tag (<img>, </p>, ...) + autolinks <http..>; the letter/slash start avoids matching math prose like "0 < n ... 2 > x"
     + ')', 's');
-  return text.split(prot); // odd indices = protected (code or existing link)
+  const parts = text.split(prot); // odd indices = protected (code or existing link)
+  return prefix ? ['', prefix].concat(parts) : parts; // leading frontmatter (if any) is a protected token
 }
 
 async function cmdInsert(args) {
