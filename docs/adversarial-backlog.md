@@ -1,4 +1,4 @@
-# trustmebro , adversarial review log + backlog
+# trustmebro, adversarial review log + backlog
 
 > historical note: this tool shipped as `cite` through v4.x and was renamed to **trustmebro** (command
 > `trustmebro` / `tmb`) at v5.0.0. references to `cite` below are the old command name during those rounds.
@@ -33,37 +33,37 @@ dead-link/canonical, prose-integrity, under-cite) sampled the result. cite's lin
 (~85% over-cite, ~85-90% dead-link, ~70% under-cite; under-links hard, zero laundering, strong canonical
 chasing). but it surfaced real failures, all folded into v3.5:
 
-1. **BLOCKING , a prose edit self-certified as markup-only** (`dumb-` -> `super-simple` on the blame post,
+1. **BLOCKING, a prose edit self-certified as markup-only** (`dumb-` -> `super-simple` on the blame post,
    committed claiming markup-only). the "prove the diff is markup-only" step was a gut-check and the
-   attestation was simply false. FIX: `cite prove <file>` , mechanical gate, strips links to visible text
+   attestation was simply false. FIX: `cite prove <file>`, mechanical gate, strips links to visible text
    and asserts byte-identical-to-HEAD prose; fails on any prose edit, link-text change, or line-ending churn.
 2. **dead-link half-fix** (heroku: href repointed to canonical but the visible anchor text left as the dead
-   url; plus the identical dead link one line below missed). FIX: skill rule , fix EVERY occurrence of a
+   url; plus the identical dead link one line below missed). FIX: skill rule, fix EVERY occurrence of a
    confirmed-dead url (href AND visible text AND other lines), or leave clean.
-3. **under-cite, central term skipped** (the bitwise-logic post left wholly untouched , its own subject
-   unlinked and its pre-existing dead links never verified). FIX: skill , link the post's CENTRAL term
+3. **under-cite, central term skipped** (the bitwise-logic post left wholly untouched, its own subject
+   unlinked and its pre-existing dead links never verified). FIX: skill, link the post's CENTRAL term
    first; never fully skip an in-scope post (at minimum verify its pre-existing links).
 4. **non-canonical redirect target** (macvlan link pointed at a 301 redirector). FIX: `cite verify` now
    surfaces the redirect landing url (`-> <final>`) so the agent links the canonical home.
-5. **nit, CRLF churn** from agent editing tooling on ~10 posts , now caught for free by `cite prove`
+5. **nit, CRLF churn** from agent editing tooling on ~10 posts, now caught for free by `cite prove`
    (line-ending change != prose, so prove fails on it).
 
 ## large-batch corpus round (v3.5 -> v3.6): 8 agents x ~31 posts, all 244 + re-review
 
-the at-scale pass that worked , larger batches dodged the burst rate-limit that killed the 31-agent run.
+the at-scale pass that worked, larger batches dodged the burst rate-limit that killed the 31-agent run.
 8/8 batches, 244 posts, +45 links, 39 dead fixed, 111 flagged, 178 untouched. **all 66 edited files pass
-cite prove** (harness-swept independently, not agent self-report) , the v3.4 prose-integrity failure is
+cite prove** (harness-swept independently, not agent self-report), the v3.4 prose-integrity failure is
 fully closed. review ~88-94% per lens. two residuals prove/skill-prose couldn't stop, fixed in v3.6:
 
-1. **the half-fix recurred (~5 posts)** despite v3.5's rule , href fixed, visible dead-url text left.
-   prove can't catch it (url->url text is a no-op to it by design). FIX: `cite lint <file>` , mechanical
+1. **the half-fix recurred (~5 posts)** despite v3.5's rule, href fixed, visible dead-url text left.
+   prove can't catch it (url->url text is a no-op to it by design). FIX: `cite lint <file>`, mechanical
    detector for a link whose visible text is a url differing from its href. rules-as-prose didn't stop it;
    a check does.
-2. **flags evaporated** , 111 dead-pre-existing-links / dubious claims surfaced only in agent reports and
+2. **flags evaporated**, 111 dead-pre-existing-links / dubious claims surfaced only in agent reports and
    were lost (aggregated to a count twice). FIX: `cite flag <post> <reason>` appends to `.cite-flags.md`
-   at the repo root , the inventory persists.
+   at the repo root, the inventory persists.
 
-still open (process, not tooling): **skipped-post under-verification** , at 31 posts/agent a few in-scope
+still open (process, not tooling): **skipped-post under-verification**, at 31 posts/agent a few in-scope
 posts (Riak central-term miss, EA/appharbor dead links) got skimmed. smaller batches cite deeper but hit
 the rate limit; bigger dodge it but skim. mitigation = a harness sweep (`cite lint`/`prove`/`verify` over
 ALL posts post-run) to catch skipped ones, not agent diligence.
@@ -75,9 +75,9 @@ an outsider could use via MCP. verdict: strong doctrine, solid core, real edge-b
 
 v3.7 (code bugs, all fixed + tested):
 - `cite links` missed single-quoted html href (rode through unverified) while `cite lint` matched it (with
-  a spurious quote) , unified the href regex (', ", or none) across links/lint; both now EXCLUDE images
+  a spurious quote), unified the href regex (', ", or none) across links/lint; both now EXCLUDE images
   (negative-lookbehind on `!`), fixing v3.6's lint false-positive on a pre-existing image whose alt was a url.
-- `cite verify -` under-trimmed whitespace (one trailing char) , a url with stray spaces false-FAILed; now
+- `cite verify -` under-trimmed whitespace (one trailing char), a url with stray spaces false-FAILed; now
   trims properly. single-url verify now prints the ok/redirect line (matched the documented behavior).
 - `cite permalink` emitted invalid `#L0` and backwards `#L4-L2` (added start>=1 + start<=end) and miscounted
   a file with no trailing newline via `wc -l` (now `awk NR`), which had wrongly rejected its last line.
@@ -86,7 +86,7 @@ v3.8 (delivery + harness):
 - SKILL.md rewritten as a clean agent-to-agent spec (Roy: a public skill is by agents for agents, not in
   his voice): quickstart + setup at top, the ~35% triplication cut (the old "contract" folded in), the
   giant flow-step-5 broken into labeled dead-link rules, real punctuation instead of comma-as-em-dash.
-- `cite sweep <repo-dir> <base>` , runs prove + lint over every changed .md after a batch/corpus run.
+- `cite sweep <repo-dir> <base>`, runs prove + lint over every changed .md after a batch/corpus run.
   the harness backstop, since per-post agent diligence is uneven (the gates' self-reports can't be trusted;
   the corpus run produced zero `.cite-flags.md` despite flag-worthy items).
 - documented the prove footgun (run vs the BASE / pre-commit, not bare HEAD post-commit, or it self-passes).
@@ -95,27 +95,27 @@ v3.8 (delivery + harness):
 mcp: judgment lives in SKILL.md prose and must travel as an MCP PROMPT/resource, not as tool descriptions,
 or you ship the safe-but-dumb half. permalink/preflight/flag are local-git/fs (don't remote); file-takers
 need inline-content variants; output should go `--json`. PLAN (Roy): build this as a separate MCP MIRROR
-that wraps the helper + serves the judgment as a prompt , do NOT bake mcp shape into the skill/helper.
+that wraps the helper + serves the judgment as a prompt, do NOT bake mcp shape into the skill/helper.
 
 still open (process, not tooling): semantic correctness (the 1TB live-but-wrong redirect-to-index) is
 structurally invisible to prove+lint; mitigated by `cite sweep` + verify, not eliminated. it rides on agent
-judgment by design , cite is link-hygiene, not a fact-check.
+judgment by design, cite is link-hygiene, not a fact-check.
 
 ## independent "is it perfect" pass (v3.9 -> v3.10): 5 fresh agents, real holes found
 
-asked 5 cold agents to either find a real flaw or concede it is sound. they did NOT rubber-stamp , two
+asked 5 cold agents to either find a real flaw or concede it is sound. they did NOT rubber-stamp, two
 serious bugs + several real ones, all fixed in v3.10:
 
-- **`cite verify -` silently passed any url > 255 bytes** , the parallel batch used `xargs -I{}`, whose
+- **`cite verify -` silently passed any url > 255 bytes**, the parallel batch used `xargs -I{}`, whose
   BSD replstr limit DROPS long lines; a long dead url returned rc=0/PASS with no output, breaking the
   core gate (and check/sweep/the documented pipe). FIX: `xargs -P 8 -n1` (positional arg, no length cap).
-- **reference-style links were invisible** , `cite links` only saw inline + html, so a `[text][label]`
+- **reference-style links were invisible**, `cite links` only saw inline + html, so a `[text][label]`
   doc certified PASS with zero fetches (the adjudicator's catch: unchecked-but-vouched, the worst class).
   FIX: extract `[label]: url` reference definitions too.
-- **`cite check` conflated prove failures** , reported "PROSE CHANGED" for not-in-git / file-absent-at-base
+- **`cite check` conflated prove failures**, reported "PROSE CHANGED" for not-in-git / file-absent-at-base
   / real-prose-change alike; a clean NEW post vs its branch point read as ISSUES. FIX: check distinguishes
   prove-inapplicable (skipped) from a real change, in text and json.
-- **--json hardening** , code field was number(200)/string("404") , now always string; `die` emits
+- **--json hardening**, code field was number(200)/string("404"), now always string; `die` emits
   `{"error":...,"ok":false}` under --json; `check --json` embeds failed_urls + offenders (self-sufficient);
   `_jesc` escapes all control chars (valid JSON); batch verify documented as JSONL; added `cite version`.
 
@@ -123,24 +123,24 @@ serious bugs + several real ones, all fixed in v3.10:
 coverage (+ the prove-url-no-op caveat) and the multi-line-html-anchor lint blind spot.
 
 deferred to the MCP MIRROR (not the helper): a full structured error envelope on EVERY path (usage/arg
-errors still go to stderr), a declared schema_version, and collecting batch JSONL into an array , these
+errors still go to stderr), a declared schema_version, and collecting batch JSONL into an array, these
 are mirror-shape concerns, per Roy's "mcp shape lives in the mirror, not the skill."
 
 ## confirming pass (v3.10 -> v3.11): fixes hold, but fresh agents found a NEW class
 
 4 agents: one independently re-verified all four v3.10 fixes hold (real repros, suite green); the others
-hunted fresh. they did NOT rubber-stamp , a new class the prior 9 rounds missed, all fixed in v3.11:
+hunted fresh. they did NOT rubber-stamp, a new class the prior 9 rounds missed, all fixed in v3.11:
 
-- **code-fence / inline-code blindness** , every extractor scanned raw bytes, so a link inside ``` or
+- **code-fence / inline-code blindness**, every extractor scanned raw bytes, so a link inside ``` or
   `inline code` was treated as real. Two harms: (a) a doc documenting an example/dead url FAILED the gate
-  (false ISSUES), and (b) the dangerous inverse , `lint --fix` REWROTE a teaching example inside code,
+  (false ISSUES), and (b) the dangerous inverse, `lint --fix` REWROTE a teaching example inside code,
   and `prove` certified it green (url->url is a no-op to prove). FIX: `_mask_code` strips fenced + inline
   code before extraction in links + lint; `lint --fix` uses a code-span-first alternation so it never
   rewrites inside code.
-- **autolinks + bare urls not extracted** , `<https://x>` and bare prose urls render clickable but were
+- **autolinks + bare urls not extracted**, `<https://x>` and bare prose urls render clickable but were
   invisible, so a dead one rode through check as PASS (same unchecked-but-vouched class as the v3.10
   ref-style hole, just two more forms). FIX: cmd_links now extracts both (code-masked).
-- **check vs flag-don't-remove contradiction** , a correctly-FLAGGED pre-existing dead link still failed
+- **check vs flag-don't-remove contradiction**, a correctly-FLAGGED pre-existing dead link still failed
   check, contradicting the headline rule. FIX: `cite check` treats a verify failure whose url is in
   `.cite-flags.md` as "flagged, known", not a gate failure (flag the dead link WITH its url).
 
@@ -148,13 +148,13 @@ hunted fresh. they did NOT rubber-stamp , a new class the prior 9 rounds missed,
 url-with-interior-space word-split in batch, prove over-strict on a ref-label rename (conservative, never
 lets bad content through).
 
-## backlog , deterministic enhancements (non-blocking, surfaced round 5)
+## backlog, deterministic enhancements (non-blocking, surfaced round 5)
 
 worth building when cite gets more investment; the skill's prose already mandates the manual versions,
 and a careful agent reaches the right answer without them.
 
 1. **`cite verify --crosscheck` (root-probe gated-vs-dead).** today the dead-vs-gated call is the
-   agent's manual cross-check. mechanize it: on a non-200, also probe the host root , `root also 403 ->
+   agent's manual cross-check. mechanize it: on a non-200, also probe the host root, `root also 403 ->
    likely host-wide gate (keep, confirm existence)`, `root 200 + page 404 -> likely dead`. turns a
    reassuring-but-passive hint into a deterministic verdict, closing the "weaker agent rubber-stamps all
    403s as gated" risk.
@@ -175,16 +175,16 @@ non-gated cross-check, don't-rewrite-prose-and-prove-it. these are the spine.
 3 agents: one verified all v3.11 fixes hold (SOUND, fresh repros, suite green). the other two found three
 more real holes, ALL in the one regex link-extractor, all fixed in v3.12:
 
-- BLOCKING: a markdown link whose visible TEXT spans a soft line break was invisible , cmd_links was
+- BLOCKING: a markdown link whose visible TEXT spans a soft line break was invisible, cmd_links was
   line-mode (`perl -ne`) while its siblings _strip/_lint_scan slurp (`-0777`); the `[^\]]*` text class
   only crosses a newline in slurp mode. a dead multi-line-text link certified PASS. FIX: cmd_links now
   slurps too (-0777, /m on the ^-anchored patterns).
-- REAL: linked-image / clickable badge `[![alt](src)](target)` , the inline regex matched `[![alt](src)`
+- REAL: linked-image / clickable badge `[![alt](src)](target)`, the inline regex matched `[![alt](src)`
   and emitted the IMAGE SRC while the real outer TARGET rode through unchecked (a dead badge target = PASS).
   bites hardest on badge-dense foreign READMEs, which the blog-post corpus rounds never exercised. FIX:
   collapse `![alt](src)` -> alt before extraction, so images vanish (src never emitted) and the outer
   target is exposed.
-- REAL: html comments not masked , a link inside `<!-- ... -->` doesn't render but was extracted + failed
+- REAL: html comments not masked, a link inside `<!-- ... -->` doesn't render but was extracted + failed
   (false ISSUES on a commented-out link). FIX: _mask_code strips `<!-- ... -->` (and lint --fix protects it).
 - nit: the VERSION constant lagged SKILL frontmatter (said 3.10.0); now synced.
 
@@ -196,10 +196,10 @@ sound; extraction is best-effort-regex with a shrinking, documented tail.
 
 ## scope resolution (v3.13): the full link-audit is OPTIONAL, never a gate
 
-the convergence question (regex extraction has an asymptotic markdown-edge tail , chase it forever, or
+the convergence question (regex extraction has an asymptotic markdown-edge tail, chase it forever, or
 rebuild on a CommonMark parser and lose the lightweight contract?) went to Roy. his call reframed the
 whole thing: cite's MAIN job is adding sensible links (pure agent judgment, no extraction involved). the
-exhaustive "verify every pre-existing link in the doc" is a separate AUDIT feature , and it should be
+exhaustive "verify every pre-existing link in the doc" is a separate AUDIT feature, and it should be
 OPTIONAL, offered to the user, and must NEVER hang up the main purpose.
 
 so the doctrine, settled:
@@ -210,7 +210,7 @@ so the doctrine, settled:
 
 this dissolves the asymptote: the regex tail only ever affected the optional audit, not the core job. no
 CommonMark-parser rebuild needed; the lightweight bash+perl contract stays. the adversarial loop closes
-here , the agents had shifted to mining markdown-parser trivia in a secondary path.
+here, the agents had shifted to mining markdown-parser trivia in a secondary path.
 
 ## clarity + simplicity pass (v3.15 -> v3.16): a real bug + a 40% trim
 
@@ -237,13 +237,13 @@ first-class arg; relative-link absolutize using the known slug. all natural in-m
 HTML article / breaker). all confirmed cite handles real varied content well and stays out of fact-checking.
 findings, all addressed:
 
-- BLOCKING: `cite lint --fix` silently corrupted code inside `~~~` (tilde) fences , `_mask_code` protected
+- BLOCKING: `cite lint --fix` silently corrupted code inside `~~~` (tilde) fences, `_mask_code` protected
   both fence styles but the two --fix regexes protected backtick-only, reopening the v3.11 "dangerous
   inverse" for tildes. FIX: both --fix regexes now protect `(?:`|~){3,}` fences (+ indented).
-- MISSING FEATURE (3 agents): the ADD half had no safety net , a silently-missed insertion passed every
-  gate. FIX: `cite insert <file> <phrase> <url>` , verifies the url, requires an EXACTLY-ONE literal match
+- MISSING FEATURE (3 agents): the ADD half had no safety net, a silently-missed insertion passed every
+  gate. FIX: `cite insert <file> <phrase> <url>`, verifies the url, requires an EXACTLY-ONE literal match
   (0 or >1 errors), wraps in the doc's format. the add now has the same mechanical floor the hygiene half had.
-- friction cluster: removed the flag url-warn (misfired on legit url-less CLAIM flags , 3 agents);
+- friction cluster: removed the flag url-warn (misfired on legit url-less CLAIM flags, 3 agents);
   `cite check` text output now LISTS the failing urls (was: "re-run for detail") and surfaces a
   "flags recorded" count (observability for url-less claim flags, which no gate can confirm); softened the
   verify redirect note to "open the final page and confirm it still means the term" (an AWS-docs redirect to
@@ -254,10 +254,10 @@ findings, all addressed:
 ## tightened cycle (v3.17 -> v3.18): the insert feature we just shipped had a BLOCKING bug
 
 mandate changed to failure-and-refusal only (no wishlist), run cold across copilot + 2 claude subagents.
-copilot cited fine (cross-model still holds). the claude runs found a blocking bug + doc drift , and it was
+copilot cited fine (cross-model still holds). the claude runs found a blocking bug + doc drift, and it was
 in `cite insert`, the v3.17 addition. proof that every new feature breeds the next cycle's finding.
 
-- BLOCKING (corrupted-but-vouched): `cite insert` did a raw whole-file substitution , it wrapped a phrase
+- BLOCKING (corrupted-but-vouched): `cite insert` did a raw whole-file substitution, it wrapped a phrase
   inside a `code` span / fence (e.g. `pip install [requests](url)`), and `prove` certified it clean (it
   stripped the in-code link to text on both sides = a no-op). the same divergence class as the tilde bug:
   code-protection lived in _mask_code but insert + prove's _strip were never wired to it.
@@ -270,29 +270,29 @@ in `cite insert`, the v3.17 addition. proof that every new feature breeds the ne
 - footgun nudge (A-1d): a bare `cite prove` after committing self-passes; prove now notes when the file is
   identical to HEAD and tells you to pass the base ref.
 73 tests green (+3, incl. insert-in-code, prove-catches-in-code, double-insert-no-nest). the laundering
-false-confidence (A-1a) is the documented is-it-right ceiling, not a defect , gates check mechanics, not judgment.
+false-confidence (A-1a) is the documented is-it-right ceiling, not a defect, gates check mechanics, not judgment.
 
 ## engineering review (v3.18 -> v3.19): stay bash, but fix the measured perf + portability holes
 
 aggressive 4-lens arch review (portability / performance / language / scope). STRATEGIC verdict, all four
-converged: STAY bash+perl, ONE tool. don't rewrite (rust/go/dotnet) , the consumer git-clones a skill, so a
+converged: STAY bash+perl, ONE tool. don't rewrite (rust/go/dotnet), the consumer git-clones a skill, so a
 binary worsens distribution; deps are universal on mac/linux/CI; speed is network-bound; a rewrite discards
 18 versions + 73 tests of behavioral hardening for a green binary. the only pro-rewrite axis (regex tail) was
 already quarantined to the optional audit (v3.13). don't split url-validation (one 12-line curl wrapper behind
-verify+insert; splitting breaks insert's verify contract). the real boundary , mechanics (script) vs judgment
-(SKILL.md) , is already made. sql-spider being dotnet is a different consumer.
+verify+insert; splitting breaks insert's verify contract). the real boundary, mechanics (script) vs judgment
+(SKILL.md), is already made. sql-spider being dotnet is a different consumer.
 
 but the perf/portability lenses MEASURED real holes, all fixed:
 - BLOCKING (fail-open): a perl-less box made every perl call silently no-op (2>/dev/null), so prove/insert
   PASSED while doing nothing. FIX: a dispatch preflight hard-fails loudly if perl is missing; _probe does the
   same for curl. (the dangerous failure was open, not closed.)
-- BLOCKING (perf): --json built arrays with one perl spawn PER url (links/lint/check) , 200-1800x slow
+- BLOCKING (perf): --json built arrays with one perl spawn PER url (links/lint/check), 200-1800x slow
   (links --json: ~9s -> 0.04s on a 1500-url file). FIX: _json_arr / _json_objs build the array in ONE perl
   pass; cmd_check's double _lint_scan deduped to one.
 - verify parallelism 8 -> 16 (tunable via CITE_JOBS), + dedupe urls before fan-out + busybox fallback (no
   -P -> sequential instead of erroring). measured ~7.7s -> ~5.4s on 100 urls.
 - replaced prove's diff <(...) process-substitution (a bashism) with a temp-file diff (dash/busybox-safe).
-73 tests green. (also: README still scopes macOS/Linux; native Windows needs WSL/git-bash + perl , now a
+73 tests green. (also: README still scopes macOS/Linux; native Windows needs WSL/git-bash + perl, now a
 loud preflight, not a silent pass.)
 
 ## v3.19 -> v3.20: the v3.19 changes bred 3 findings (2 fail-opens), all closed
@@ -307,19 +307,20 @@ refactor. three real findings, two of them fail-opens (the dangerous class):
 - FAIL-OPEN (preflight): the perl gate tested `command -v perl` (presence), so a present-but-broken perl
   (stub / corrupt / wrong-arch) passed, then every perl call no-opped -> prove/lint PASS on tampered input.
   FIX: probe `perl -e1` (perl actually RUNS), which catches absent AND broken.
-- divergence: _json_arr/_json_objs emitted 	/ for tab/CR where _jesc emits \t/\r (both valid
+- divergence: _json_arr/_json_objs emitted 	/
+ for tab/CR where _jesc emits \t/\r (both valid
   JSON, same decoded char, but not byte-identical to the contract). FIX: mirror _jesc's escape order exactly.
 documented won't-fix nits confirmed: deeply-nested-paren urls (SKILL line 77, optional-audit only), lint
---fix drops the human label (by design). process nit: tag releases (no v* tags existed) , done from v3.20.0.
+--fix drops the human label (by design). process nit: tag releases (no v* tags existed), done from v3.20.0.
 73 -> 76 tests green.
 
 ## v3.20.1 -> v3.20.2: the confirming round caught that the v3.20 perl fix was INADEQUATE
 
 honest correction: v3.20.0 claimed `perl -e1` "catches absent AND broken" perl. it does NOT. a stub /
 wrong-arch / corrupt perl can satisfy the trivial `-e1` yet no-op or error on the real `-0777 -pe` slurp
-mode, so the SAME fail-open reopened , prove reported "prose intact" on a full rewrite, and check PASSed a
+mode, so the SAME fail-open reopened, prove reported "prose intact" on a full rewrite, and check PASSed a
 dead-link+changed-prose post (cmd_links returns empty under broken perl -> nlink=0 -> the v3.20 check guard
-never fires). both BLOCKING, both rooted in one bad probe. FIX: gate with the ACTUAL work mode , a
+never fires). both BLOCKING, both rooted in one bad probe. FIX: gate with the ACTUAL work mode, a
 `printf A | perl -0777 -pe 's/A/B/'` round-trip that must yield B, which a no-op/erroring perl fails. that
 closes prove/check/lint/links + the json-url-blanking, all of which were downstream of the same blind spot.
 also REAL (over-reach): the v3.20 CITE_JOBS validation ran for EVERY command, so a stray CITE_JOBS=auto in
@@ -328,7 +329,7 @@ CITE_JOBS check to verify/check/sweep only (still at dispatch, so check/sweep ca
 defenses that HELD (verified, not re-investigated): insert fails closed under broken perl; lint --fix fails
 closed; huge CITE_JOBS dies; $0 with a space is xargs-robust. +2 tests (broken-perl-caught, CITE_JOBS-scoped).
 
-## v3.20.2 -> v3.20.3: convergence round , perl + CITE_JOBS confirmed CLEAN; fresh eyes found the flag parser
+## v3.20.2 -> v3.20.3: convergence round, perl + CITE_JOBS confirmed CLEAN; fresh eyes found the flag parser
 
 the tight convergence round confirmed the two prior fixes hold: the perl work-mode round-trip gate is clean
 (no false-die on odd-but-working perls, no slip on realistically-broken ones), and CITE_JOBS scoping is
@@ -336,12 +337,12 @@ clean (consuming set is actually {verify,check}; gated {verify,check,sweep} is a
 over-gates but fails LOUD not open). but fresh eyes found one REAL pre-existing bug (predates the v3.20.x
 work): the global flag parser is greedy + position-independent with no end-of-options escape, so a
 phrase/reason that exactly equals a flag token (--json/--fix/--crosscheck/--relative) is silently swallowed
-AND flips the mode , e.g. `cite insert post.md --fix <url>` citing a literal CLI flag name. silent data
+AND flips the mode, e.g. `cite insert post.md --fix <url>` citing a literal CLI flag name. silent data
 loss. FIX: honor `--` as end-of-options (everything after is verbatim): `cite insert post.md -- --fix <url>`.
 documented in usage + SKILL. 78 tests green. CONVERGENCE READ: the core (cold-e2e + wide-correctness) has
 been clean for multiple rounds; findings are now narrow pre-existing edges surfaced by fresh eyes.
 
-## v3.20.3 -> v3.20.4: final round , perl confirmed load-bearing; closed a prove fail-open + a links gap
+## v3.20.3 -> v3.20.4: final round, perl confirmed load-bearing; closed a prove fail-open + a links gap
 
 the final round answered the perl question with evidence: perl is genuinely load-bearing (every call needs
 slurp/multi-line/non-greedy/split-with-capture awk/sed can't do; the lone line-wise call shares escaping
@@ -356,7 +357,7 @@ subcommand (exit 1 + message, no silent success). two real findings, both bare-u
 82 tests green (+prove-fails-bare-url, +prove-fails-autolink, +links-paren-wrapped). CONVERGENCE: core clean,
 findings now narrow edge-forms; this was the agreed last round.
 
-## v4.0.1 -> v4.0.2: JS tester sweep , fixed real port bugs; kept the JS-is-better divergences
+## v4.0.1 -> v4.0.2: JS tester sweep, fixed real port bugs; kept the JS-is-better divergences
 
 first tester sweep on the node port (differential-vs-perl-final + gate/network/fresh-eyes). FIXED real
 JS port bugs: prove's diff body went to stdout (now stderr, stdout stays clean); permalink thought an empty
@@ -369,30 +370,30 @@ KEPT (the JS is MORE correct than perl-final, documented as intentional, not reg
   perl-final's split-on-first-tab mis-attributed it.
 - check failed_urls / dead-list ordering: JS is document-order deterministic; perl was network-completion
   (nondeterministic) order.
-KNOWN LIMITATIONS (pre-existing , present in perl-final too, NOT port regressions; documented in SKILL):
+KNOWN LIMITATIONS (pre-existing, present in perl-final too, NOT port regressions; documented in SKILL):
 - 4-space indented code blocks are not recognized as code (CITE_CR covers fenced/inline/html-comment only),
   so prove can no-op / insert can wrap / lint --fix can rewrite inside them. recommend fenced code. fixing
-  well needs CommonMark indented-code detection (blank-line-preceded, not-in-list) , fiddly + a naive
+  well needs CommonMark indented-code detection (blank-line-preceded, not-in-list), fiddly + a naive
   pattern would mask real prose-in-lists (a worse fail-open), so deferred, not papered over.
 - reference-style ([text][ref]) link bodies aren't in insert/lint's protected set (inline + html only).
 - node fetch (undici) caps redirects at 20; curl's default is 50. a url needing 21+ hops reads dead in JS
   (pathological; both cap somewhere).
 fresh-eyes pass on the JS source: CLEAN (no global-regex/lastIndex, split-capture, or async-swallow bugs).
 
-## v4.0.3 -> v4.0.4: third JS sweep , 1 gate fail-open + 1 consistency fix (converging)
+## v4.0.3 -> v4.0.4: third JS sweep, 1 gate fail-open + 1 consistency fix (converging)
 
 third sweep: all v4.0.3 fixes confirmed holding, network came back clean. fixed:
 - lint FAIL-OPEN on a markdown half-fix whose link text has LEADING whitespace: `[ https://shown](https://real)`
   renders trimmed, so the reader sees a url-as-text half-fix, but the `^https?:` test saw the leading space
-  and missed it (trailing space was caught , the asymmetry proved the bug). lintScan now trims the text. (real)
+  and missed it (trailing space was caught, the asymmetry proved the bug). lintScan now trims the text. (real)
 - isFlagged: strip trailing punctuation from the QUERY url too (not just the flag-file urls), so a flagged
   bare url matches a dead inline-link href ending in punctuation. closes the documented _flagged-punct caveat.
 KEPT as correct (not a bug): a half-fix link's DISPLAY-TEXT url is no longer extracted by `links`/`check`
 (side effect of the v4.0.3 paren-phantom mask). the display text isn't a clickable target, and `lint` flags
-the half-fix anyway, so the check verdict agrees , JS is more correct than perl here.
+the half-fix anyway, so the check verdict agrees, JS is more correct than perl here.
 +1 test (lint leading-ws). 85 tests green.
 
-## v4.0.5 -> v4.0.6: fifth JS sweep , insert no longer corrupts image alt-text
+## v4.0.5 -> v4.0.6: fifth JS sweep, insert no longer corrupts image alt-text
 
 fifth sweep: differential clean (all v4.0.5 fixes hold, every diff maps to a known/documented item), cold
 usage run clean end-to-end. one real corruption found + fixed:
@@ -402,9 +403,9 @@ usage run clean end-to-end. one real corruption found + fixed:
   with perl). FIX: protSplit now protects images too (leading `!?`), so insert REFUSES a phrase that only
   lives in alt text (rc 1, "not found in citable prose"). +1 test. 89 tests green.
 
-## v4.0.6 -> v4.0.7: sixth JS sweep , insert protected-set broadened (stop the html whack-a-mole)
+## v4.0.6 -> v4.0.7: sixth JS sweep, insert protected-set broadened (stop the html whack-a-mole)
 
-sixth sweep: differential clean, cold usage clean. gate hunt found two MORE insert protected-set gaps , the
+sixth sweep: differential clean, cold usage clean. gate hunt found two MORE insert protected-set gaps, the
 same class as the autolink (v4.0.5) + image-alt (v4.0.6) ones: a phrase appearing ONLY inside (a) a
 linked-image's OUTER href `[![alt](img)](href)`, or (b) an html `<img>` tag, got wrapped + corrupted, exit 0
 (prove/lint fail open because the damage is markup-internal). RATHER than patch each markup form one-by-one,
@@ -415,12 +416,12 @@ exotic markdown (link titles, ref-style, footnotes); the cases that slip require
 appears inside markup/a url (pathological for real citation use), and the SKILL's "review the diff" is the
 final backstop. the core gates + differential + cold-usage have been clean throughout.
 
-## v4.0.7 -> v4.0.8: seventh JS sweep , CONVERGED (insert + usage clean; tightened the html guard)
+## v4.0.7 -> v4.0.8: seventh JS sweep, CONVERGED (insert + usage clean; tightened the html guard)
 
 seventh sweep: insert protected-set CLEAN (the v4.0.7 broadening held), cold usage run CLEAN (a realistic
 consensus-service blog post cited end-to-end). differential found ONE nit, self-inflicted by the v4.0.7 broad
 `<[^>]+>` guard: it matched math/comparison prose ("0 < n the algorithm and 2 > x") so insert false-REFUSED
-a legit phrase between a `<` and a `>` (safe , a clean refusal, never corruption). FIX: match only real html
+a legit phrase between a `<` and a `>` (safe, a clean refusal, never corruption). FIX: match only real html
 tags `<\/?[a-zA-Z][^>]*>` (still catches <img>/</a>/autolinks, not math prose). verified: math-prose phrase
 wraps; <img>/autolink/linked-image still refused. 91 tests green.
 
@@ -432,11 +433,11 @@ differential-vs-perl, and the cold-usage runs are clean; the only residuals are 
 
 citing a real post surfaced two things:
 - BUG (crosscheck): a 429 (and 403/503) path with a 200 host root was reported "likely DEAD". those are
-  GATE codes (rate-limit / bot-block), not death , the crosscheck wrongly overrode the gate signal because
+  GATE codes (rate-limit / bot-block), not death, the crosscheck wrongly overrode the gate signal because
   the root was up. it would have told an agent a rate-limited-but-live link was dead (e.g. wikipedia
   rate-limiting cite's bare fetch UA). FIX: gate codes (403/429/503) report "rate-limit/bot gate, not death"
   regardless of root; only non-gate codes use the root-vs-path dead inference.
-- DOCTRINE (under-linking EXPLAIN): the run was too shy , it linked the clear jargon but missed central
+- DOCTRINE (under-linking EXPLAIN): the run was too shy, it linked the clear jargon but missed central
   terms like "knowledge graph" and "connected component". the old "under-link, zero is fine" rationed
   EXPLAIN. SKILL now splits the bias by type: THOROUGH on EXPLAIN (a jargon sweep, per-concept not rationed,
   low-risk + trivially removable, a stuck reader is the real cost) and CONSERVATIVE on SUBSTANTIATE (wrong =
@@ -449,9 +450,9 @@ live via an alternate check first (what I did for the connected-component link).
 
 cite already handled html LINKS everywhere (insert writes <a href> for .html; links/verify/lint/prove all
 read <a> anchors). the one gap: CITE_CR (code regions) only knew markdown code (fenced/inline/html-comment),
-NOT html <pre>/<code> , so a link or phrase inside <pre><code> in an html article was treated as live prose
+NOT html <pre>/<code>, so a link or phrase inside <pre><code> in an html article was treated as live prose
 (links grabbed it; insert would wrap into it). repro confirmed. FIX: added <pre>...</pre> + <code>...</code>
 to CITE_CR, so html code blocks get the same skip as markdown fences across mask/strip/insert/lint. now
-.html articles are fully first-class. README + SKILL state "markdown OR html , post/doc/readme/article", and
+.html articles are fully first-class. README + SKILL state "markdown OR html, post/doc/readme/article", and
 the code-regions note lists <pre>/<code>. +3 tests (html code-region masked, insert refuses inside <pre>,
 insert writes <a href> in .html). 94 tests green.
